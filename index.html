@@ -24,7 +24,7 @@
             display: flex; 
             align-items: center; 
             padding: 15px 12px; 
-            border-bottom: 1px solid #111; 
+            border-bottom: 0.5px solid rgba(255, 255, 255, 0.3); 
             border-left: 10px solid #333; 
             height: 90px;
             box-sizing: border-box;
@@ -41,8 +41,9 @@
         .icon { flex-grow: 1; text-align: center; font-size: 2.8rem; }
         
         .stats { text-align: right; min-width: 105px; }
-        .val { font-size: 1.8rem; font-weight: 900; display: block; line-height: 1; }
-        .label { font-size: 0.75rem; color: #555; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; display: block; }
+        .val { font-size: 1.8rem; font-weight: 900; display: inline-block; line-height: 1; }
+        .label { font-size: 0.75rem; color: #555; font-weight: 900; text-transform: uppercase; display: inline-block; margin-right: 4px; }
+        .precip-small { font-size: 0.9rem; color: #bbb; margin-right: 2px; font-weight: 400; }
 
         .risk-high { border-left-color: var(--danger); background: #150505; }
         .risk-med { border-left-color: var(--warn); background: #0f0a02; }
@@ -90,7 +91,6 @@ async function handleSearch() {
     const q = document.getElementById('loc-input').value;
     if (!q) return;
 
-    // Mostramos el cargando mientras busca la ubicación
     document.getElementById('view-container').innerHTML = '';
     document.getElementById('loader').style.display = 'block';
 
@@ -106,7 +106,7 @@ async function handleSearch() {
         } else {
             document.getElementById('loader').style.display = 'none';
             alert("No se ha podido encontrar la localización: '" + q + "'. Revisa el nombre.");
-            render(); // Volver a mostrar lo que había
+            render(); 
         }
     } catch (e) { 
         console.error(e);
@@ -117,7 +117,7 @@ async function handleSearch() {
 
 async function fetchData() {
     document.getElementById('loader').style.display = 'block';
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=auto&forecast_days=16`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&timezone=auto&forecast_days=16`;
     const res = await fetch(url);
     weatherData = await res.json();
     document.getElementById('loader').style.display = 'none';
@@ -148,9 +148,11 @@ function render() {
             const time = h.time[i].split('T')[1];
             const temp = Math.round(h.temperature_2m[i]);
             const feel = Math.round(h.apparent_temperature[i]);
-            const rain = h.precipitation_probability[i];
+            const rainProb = h.precipitation_probability[i];
+            const rainMmVal = h.precipitation[i];
+            const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
             const gusts = Math.round(h.wind_gusts_10m[i]);
-            const risk = gusts > 30 || rain > 40 ? 'risk-high' : (gusts > 20 || rain > 15 ? 'risk-med' : 'risk-low');
+            const risk = gusts > 30 || rainProb > 40 ? 'risk-high' : (gusts > 20 || rainProb > 15 ? 'risk-med' : 'risk-low');
             
             container.innerHTML += `
                 <div class="card ${risk}">
@@ -161,8 +163,8 @@ function render() {
                     </div>
                     <div class="icon">${icons[h.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
-                        <span class="label">VIENTO</span><span class="val" style="color:#3b82f6">${gusts}</span>
-                        <span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rain}%</span>
+                        <div><span class="label">VIENTO</span><span class="val" style="color:#3b82f6">${gusts}</span></div>
+                        <div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>
                     </div>
                 </div>`;
         }
@@ -176,8 +178,10 @@ function render() {
             
             const max = Math.round(d.temperature_2m_max[i]);
             const min = Math.round(d.temperature_2m_min[i]);
-            const rain = d.precipitation_probability_max[i];
-            const rainClass = rain > 30 ? 'risk-rain' : '';
+            const rainProb = d.precipitation_probability_max[i];
+            const rainMmVal = d.precipitation_sum[i];
+            const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
+            const rainClass = rainProb > 30 ? 'risk-rain' : '';
             
             container.innerHTML += `
                 <div class="card" style="border-left-color: #222">
@@ -195,7 +199,7 @@ function render() {
                     <div class="icon">${icons[d.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
                         <span class="label">LLUVIA</span>
-                        <span class="val ${rainClass}" style="color:#22d3ee">${rain}%</span>
+                        <span class="val ${rainClass}" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span>
                     </div>
                 </div>`;
         }
