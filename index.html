@@ -30,7 +30,8 @@
             box-sizing: border-box;
         }
         
-        .time-label { min-width: 90px; font-weight: 800; font-size: 1.2rem; color: #aaa; line-height: 1.1; }
+        .time-label { min-width: 65px; font-weight: 800; font-size: 1.2rem; color: #aaa; line-height: 1.1; }
+        
         .temp-main { min-width: 110px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
         .temp-val { font-size: 2.6rem; font-weight: 950; display: block; line-height: 0.85; }
         .temp-range { font-size: 1.2rem; font-weight: 800; display: flex; justify-content: center; gap: 8px; margin-top: 5px; }
@@ -90,14 +91,11 @@ async function init() { await fetchData(); }
 async function handleSearch() {
     const q = document.getElementById('loc-input').value;
     if (!q) return;
-
     document.getElementById('view-container').innerHTML = '';
     document.getElementById('loader').style.display = 'block';
-
     try {
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
         const data = await res.json();
-        
         if (data && data.length > 0) {
             currentLat = data[0].lat; 
             currentLon = data[0].lon;
@@ -105,19 +103,18 @@ async function handleSearch() {
             await fetchData();
         } else {
             document.getElementById('loader').style.display = 'none';
-            alert("No se ha podido encontrar la localización: '" + q + "'. Revisa el nombre.");
+            alert("No se ha podido encontrar la localización.");
             render(); 
         }
     } catch (e) { 
-        console.error(e);
         document.getElementById('loader').style.display = 'none';
-        alert("Error de conexión al buscar el destino.");
+        alert("Error de conexión.");
     }
 }
 
 async function fetchData() {
     document.getElementById('loader').style.display = 'block';
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&timezone=auto&forecast_days=16`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=16`;
     const res = await fetch(url);
     weatherData = await res.json();
     document.getElementById('loader').style.display = 'none';
@@ -175,13 +172,12 @@ function render() {
             const dateObj = new Date(d.time[i]);
             const weekDay = dateObj.toLocaleDateString('es-ES', {weekday: 'short'});
             const dayNum = dateObj.toLocaleDateString('es-ES', {day: 'numeric'});
-            
             const max = Math.round(d.temperature_2m_max[i]);
             const min = Math.round(d.temperature_2m_min[i]);
             const rainProb = d.precipitation_probability_max[i];
             const rainMmVal = d.precipitation_sum[i];
             const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
-            const rainClass = rainProb > 30 ? 'risk-rain' : '';
+            const gustsMax = Math.round(d.wind_gusts_10m_max[i]);
             
             container.innerHTML += `
                 <div class="card" style="border-left-color: #222">
@@ -198,8 +194,8 @@ function render() {
                     </div>
                     <div class="icon">${icons[d.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
-                        <span class="label">LLUVIA</span>
-                        <span class="val ${rainClass}" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span>
+                        <div><span class="label">VIENTO</span><span class="val" style="color:#3b82f6">${gustsMax}</span></div>
+                        <div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>
                     </div>
                 </div>`;
         }
