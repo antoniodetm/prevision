@@ -49,7 +49,6 @@
         .risk-high { border-left-color: var(--danger); background: #150505; }
         .risk-med { border-left-color: var(--warn); background: #0f0a02; }
         .risk-low { border-left-color: var(--safe); }
-        .risk-rain { color: var(--danger) !important; }
 
         #loader { text-align: center; padding: 40px; color: #444; font-weight: bold; font-size: 1.2rem; display: none; }
     </style>
@@ -149,8 +148,20 @@ function render() {
             const rainMmVal = h.precipitation[i];
             const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
             const gusts = Math.round(h.wind_gusts_10m[i]);
+            
+            // Lógica de Riesgo
             const risk = gusts > 30 || rainProb > 40 ? 'risk-high' : (gusts > 20 || rainProb > 15 ? 'risk-med' : 'risk-low');
             
+            // Lógica Ciclista: Color Viento
+            let windColor = '#3b82f6';
+            if (gusts > 25) windColor = 'var(--danger)';
+            else if (gusts > 15) windColor = 'var(--warn)';
+
+            // Lógica Ciclista: Ocultar texto LLUVIA si es 0%
+            const rainRow = rainProb > 0 
+                ? `<div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>` 
+                : '';
+
             container.innerHTML += `
                 <div class="card ${risk}">
                     <div class="time-label">${time}</div>
@@ -160,8 +171,8 @@ function render() {
                     </div>
                     <div class="icon">${icons[h.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
-                        <div><span class="label">VIENTO</span><span class="val" style="color:#3b82f6">${gusts}</span></div>
-                        <div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>
+                        <div><span class="label">VIENTO</span><span class="val" style="color:${windColor}">${gusts}</span></div>
+                        ${rainRow}
                     </div>
                 </div>`;
         }
@@ -178,6 +189,16 @@ function render() {
             const rainMmVal = d.precipitation_sum[i];
             const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
             const gustsMax = Math.round(d.wind_gusts_10m_max[i]);
+
+            // Lógica Ciclista: Color Viento
+            let windColor = '#3b82f6';
+            if (gustsMax > 25) windColor = 'var(--danger)';
+            else if (gustsMax > 15) windColor = 'var(--warn)';
+
+            // Lógica Ciclista: Ocultar texto LLUVIA si es 0%
+            const rainRow = rainProb > 0 
+                ? `<div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>` 
+                : '';
             
             container.innerHTML += `
                 <div class="card" style="border-left-color: #222">
@@ -194,8 +215,8 @@ function render() {
                     </div>
                     <div class="icon">${icons[d.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
-                        <div><span class="label">VIENTO</span><span class="val" style="color:#3b82f6">${gustsMax}</span></div>
-                        <div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>
+                        <div><span class="label">VIENTO</span><span class="val" style="color:${windColor}">${gustsMax}</span></div>
+                        ${rainRow}
                     </div>
                 </div>`;
         }
