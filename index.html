@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BICI PLANNER PRO XL</title>
     <style>
-        :root { --p: #2563eb; --warn: #f59e0b; --danger: #ef4444; --safe: #22c55e; --bg: #000; }
+        :root { 
+            --p: #2563eb; 
+            /* Paleta solicitada */
+            --danger: #003366; /* Azul Oscuro (Peligro) */
+            --warn: #ffcc00;   /* Amarillo (Precaución) */
+            --safe: #009e73;   /* Verde (Día perfecto) */
+            --bg: #000; 
+        }
+        
         body { background: #1a1a1a; margin: 0; padding: 0; display: flex; justify-content: center; color: #fff; font-family: ui-sans-serif, system-ui, sans-serif; }
         .phone-container { width: 100%; max-width: 430px; background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; }
         
@@ -17,57 +25,47 @@
         .tab { flex: 1; padding: 18px; text-align: center; font-size: 0.9rem; font-weight: 900; color: #555; cursor: pointer; text-transform: uppercase; }
         .tab.active { color: var(--p); border-bottom: 4px solid var(--p); background: #18181b; }
 
-        .header-info { padding: 12px 15px; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; }
-        .header-info h2 { margin: 0; font-size: 1rem; color: #777; text-transform: uppercase; letter-spacing: 1px; }
-
         .card { 
             display: flex; 
             align-items: center; 
             padding: 15px 12px; 
-            border-bottom: 0.5px solid rgba(255, 255, 255, 0.3); 
+            border-bottom: 0.5px solid rgba(255, 255, 255, 0.1); 
             border-left: 10px solid #333; 
             height: 90px;
             box-sizing: border-box;
         }
         
-        .time-label { min-width: 65px; font-weight: 800; font-size: 1.2rem; color: #aaa; line-height: 1.1; }
+        .time-label { min-width: 65px; font-weight: 800; font-size: 1.1rem; color: #aaa; }
+        .temp-main { min-width: 100px; text-align: center; display: flex; flex-direction: column; }
+        .temp-val { font-size: 2.4rem; font-weight: 950; display: block; line-height: 0.85; }
+        .temp-range { font-size: 1.1rem; font-weight: 800; display: flex; justify-content: center; gap: 6px; margin-top: 5px; }
+        .t-max { color: #ff6b6b; }
+        .t-min { color: #4dadff; }
+        .temp-sub { font-size: 0.75rem; color: #666; font-weight: 800; text-transform: uppercase; }
         
-        .temp-main { min-width: 110px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-        .temp-val { font-size: 2.6rem; font-weight: 950; display: block; line-height: 0.85; }
-        .temp-range { font-size: 1.2rem; font-weight: 800; display: flex; justify-content: center; gap: 8px; margin-top: 5px; }
-        .t-max { color: #ff4d4d; }
-        .t-min { color: #4da6ff; }
-        .temp-sub { font-size: 0.85rem; color: #666; font-weight: 800; text-transform: uppercase; margin-top: 4px; }
-        
-        .icon { flex-grow: 1; text-align: center; font-size: 2.8rem; }
-        
-        .stats { text-align: right; min-width: 105px; }
-        .val { font-size: 1.8rem; font-weight: 900; display: inline-block; line-height: 1; }
-        .label { font-size: 0.75rem; color: #555; font-weight: 900; text-transform: uppercase; display: inline-block; margin-right: 4px; }
-        .precip-small { font-size: 0.9rem; color: #bbb; margin-right: 2px; font-weight: 400; }
+        .icon { flex-grow: 1; text-align: center; font-size: 2.5rem; }
+        .stats { text-align: right; min-width: 110px; }
+        .val { font-size: 1.7rem; font-weight: 900; display: inline-block; line-height: 1; }
+        .label { font-size: 0.7rem; color: #666; font-weight: 900; text-transform: uppercase; margin-right: 4px; }
 
-        .risk-high { border-left-color: var(--danger); background: #150505; }
-        .risk-med { border-left-color: var(--warn); background: #0f0a02; }
-        .risk-low { border-left-color: var(--safe); }
+        .risk-danger { border-left-color: var(--danger); } 
+        .risk-warn { border-left-color: var(--warn); }   
+        .risk-safe { border-left-color: var(--safe); }                        
 
-        #loader { text-align: center; padding: 40px; color: #444; font-weight: bold; font-size: 1.2rem; display: none; }
+        #loader { text-align: center; padding: 40px; color: #444; font-weight: bold; display: none; }
     </style>
 </head>
 <body onload="init()">
 
 <div class="phone-container">
     <div class="search-box">
-        <input type="text" id="loc-input" class="search-input" placeholder="Destino..." value="Alcorcón">
+        <input type="text" id="loc-input" class="search-input" placeholder="Ciudad..." value="Alcorcón">
         <button onclick="handleSearch()" class="search-btn">IR</button>
     </div>
 
     <div class="tabs">
         <div class="tab active" id="tab-hourly" onclick="switchTab('hourly')">24 HORAS</div>
         <div class="tab" id="tab-daily" onclick="switchTab('daily')">15 DÍAS</div>
-    </div>
-
-    <div class="header-info">
-        <h2 id="loc-label">LOCALIZACIÓN: ALCORCÓN</h2>
     </div>
 
     <div id="loader">CARGANDO...</div>
@@ -79,41 +77,25 @@ let currentLat = 40.3366, currentLon = -3.8369;
 let weatherData = null;
 let currentMode = 'hourly';
 
-const icons = { 
-    0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 
-    51: "🌦️", 53: "🌦️", 55: "🌦️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 
-    71: "❄️", 80: "🌧️", 81: "🌧️", 82: "🌧️", 95: "⛈️" 
-};
+const icons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌦️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "❄️", 80: "🌧️", 81: "🌧️", 82: "🌧️", 95: "⛈️" };
 
 async function init() { await fetchData(); }
 
 async function handleSearch() {
     const q = document.getElementById('loc-input').value;
     if (!q) return;
-    document.getElementById('view-container').innerHTML = '';
     document.getElementById('loader').style.display = 'block';
-    try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
-        const data = await res.json();
-        if (data && data.length > 0) {
-            currentLat = data[0].lat; 
-            currentLon = data[0].lon;
-            document.getElementById('loc-label').innerText = `DESTINO: ${data[0].display_name.split(',')[0].toUpperCase()}`;
-            await fetchData();
-        } else {
-            document.getElementById('loader').style.display = 'none';
-            alert("No se ha podido encontrar la localización.");
-            render(); 
-        }
-    } catch (e) { 
-        document.getElementById('loader').style.display = 'none';
-        alert("Error de conexión.");
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
+    const data = await res.json();
+    if (data.length > 0) {
+        currentLat = data[0].lat; currentLon = data[0].lon;
+        await fetchData();
     }
 }
 
 async function fetchData() {
     document.getElementById('loader').style.display = 'block';
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=16`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=16`;
     const res = await fetch(url);
     weatherData = await res.json();
     document.getElementById('loader').style.display = 'none';
@@ -125,6 +107,15 @@ function switchTab(mode) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.getElementById(`tab-${mode}`).classList.add('active');
     render();
+}
+
+function getRiskInfo(gusts, rainProb) {
+    // Peligro: Viento > 25 o Lluvia > 30%
+    if (gusts > 25 || rainProb > 30) return { class: 'risk-danger', color: 'var(--danger)' };
+    // Precaución: Viento entre 16-25 o Lluvia entre 1-30%
+    if (gusts > 15 || rainProb > 0) return { class: 'risk-warn', color: 'var(--warn)' };
+    // Día perfecto: Viento <= 15 y 0% Lluvia
+    return { class: 'risk-safe', color: 'var(--safe)' };
 }
 
 function render() {
@@ -140,83 +131,49 @@ function render() {
         if (startIndex === -1) startIndex = 0;
 
         for(let i = startIndex; i < startIndex + 24; i++) {
-            if (!h.time[i]) break;
-            const time = h.time[i].split('T')[1];
-            const temp = Math.round(h.temperature_2m[i]);
-            const feel = Math.round(h.apparent_temperature[i]);
-            const rainProb = h.precipitation_probability[i];
-            const rainMmVal = h.precipitation[i];
-            const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
             const gusts = Math.round(h.wind_gusts_10m[i]);
+            const rain = h.precipitation_probability[i];
+            const risk = getRiskInfo(gusts, rain);
             
-            // Lógica de Riesgo
-            const risk = gusts > 30 || rainProb > 40 ? 'risk-high' : (gusts > 20 || rainProb > 15 ? 'risk-med' : 'risk-low');
-            
-            // Lógica Ciclista: Color Viento
-            let windColor = '#3b82f6';
-            if (gusts > 25) windColor = 'var(--danger)';
-            else if (gusts > 15) windColor = 'var(--warn)';
-
-            // Lógica Ciclista: Ocultar texto LLUVIA si es 0%
-            const rainRow = rainProb > 0 
-                ? `<div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>` 
-                : '';
-
             container.innerHTML += `
-                <div class="card ${risk}">
-                    <div class="time-label">${time}</div>
+                <div class="card ${risk.class}">
+                    <div class="time-label">${h.time[i].split('T')[1]}</div>
                     <div class="temp-main">
-                        <span class="temp-val">${temp}°</span>
-                        <span class="temp-sub">SENS. ${feel}°</span>
+                        <span class="temp-val">${Math.round(h.temperature_2m[i])}°</span>
+                        <span class="temp-sub">SENS. ${Math.round(h.apparent_temperature[i])}°</span>
                     </div>
                     <div class="icon">${icons[h.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
-                        <div><span class="label">VIENTO</span><span class="val" style="color:${windColor}">${gusts}</span></div>
-                        ${rainRow}
+                        <div><span class="label">VIENTO</span><span class="val" style="color:${risk.color}">${gusts}</span></div>
+                        <div><span class="label">LLUVIA</span><span class="val" style="color:${rain > 0 ? '#4dadff' : '#444'}">${rain}%</span></div>
                     </div>
                 </div>`;
         }
     } else {
         const d = weatherData.daily;
         for(let i=0; i<15; i++) {
-            if (!d.time[i]) break;
             const dateObj = new Date(d.time[i]);
-            const weekDay = dateObj.toLocaleDateString('es-ES', {weekday: 'short'});
-            const dayNum = dateObj.toLocaleDateString('es-ES', {day: 'numeric'});
-            const max = Math.round(d.temperature_2m_max[i]);
-            const min = Math.round(d.temperature_2m_min[i]);
-            const rainProb = d.precipitation_probability_max[i];
-            const rainMmVal = d.precipitation_sum[i];
-            const rainMmHtml = rainMmVal > 0 ? `<span class="precip-small">${rainMmVal.toFixed(1)}mm</span>` : '';
-            const gustsMax = Math.round(d.wind_gusts_10m_max[i]);
+            const gusts = Math.round(d.wind_gusts_10m_max[i]);
+            const rain = d.precipitation_probability_max[i];
+            const risk = getRiskInfo(gusts, rain);
 
-            // Lógica Ciclista: Color Viento
-            let windColor = '#3b82f6';
-            if (gustsMax > 25) windColor = 'var(--danger)';
-            else if (gustsMax > 15) windColor = 'var(--warn)';
-
-            // Lógica Ciclista: Ocultar texto LLUVIA si es 0%
-            const rainRow = rainProb > 0 
-                ? `<div><span class="label">LLUVIA</span><span class="val" style="color:#22d3ee">${rainMmHtml}${rainProb}%</span></div>` 
-                : '';
-            
             container.innerHTML += `
-                <div class="card" style="border-left-color: #222">
+                <div class="card ${risk.class}">
                     <div class="time-label">
-                        <span style="text-transform: capitalize; color: var(--p)">${weekDay}</span><br>
-                        <span style="font-size: 1.1rem; color:#666">${dayNum}</span>
+                        <span style="text-transform: capitalize; color: var(--p)">${dateObj.toLocaleDateString('es-ES', {weekday: 'short'})}</span><br>
+                        <span style="font-size: 1.1rem; color:#666">${dateObj.getDate()}</span>
                     </div>
                     <div class="temp-main">
                         <div class="temp-range">
-                            <span class="t-max">${max}°</span>
-                            <span class="t-min">${min}°</span>
+                            <span class="t-max">${Math.round(d.temperature_2m_max[i])}°</span>
+                            <span class="t-min">${Math.round(d.temperature_2m_min[i])}°</span>
                         </div>
                         <span class="temp-sub">MAX / MIN</span>
                     </div>
                     <div class="icon">${icons[d.weather_code[i]] || "🌤️"}</div>
                     <div class="stats">
-                        <div><span class="label">VIENTO</span><span class="val" style="color:${windColor}">${gustsMax}</span></div>
-                        ${rainRow}
+                        <div><span class="label">VIENTO</span><span class="val" style="color:${risk.color}">${gusts}</span></div>
+                        <div><span class="label">LLUVIA</span><span class="val" style="color:${rain > 0 ? '#4dadff' : '#444'}">${rain}%</span></div>
                     </div>
                 </div>`;
         }
