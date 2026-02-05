@@ -2,182 +2,177 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BICI PLANNER PRO XL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PREVISIÓN BICI PRO</title>
     <style>
         :root { 
-            --p: #2563eb; 
-            /* Paleta solicitada */
-            --danger: #003366; /* Azul Oscuro (Peligro) */
-            --warn: #ffcc00;   /* Amarillo (Precaución) */
-            --safe: #009e73;   /* Verde (Día perfecto) */
-            --bg: #000; 
+            --low: #e0f2fe; --med: #7dd3fc; --high: #0369a1;   
+            --cold: #38bdf8; --hot: #fb923c; --danger: #ef4444; 
+            --bg: #000;
         }
         
-        body { background: #1a1a1a; margin: 0; padding: 0; display: flex; justify-content: center; color: #fff; font-family: ui-sans-serif, system-ui, sans-serif; }
-        .phone-container { width: 100%; max-width: 430px; background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; }
+        * { box-sizing: border-box; font-family: 'Arial Black', sans-serif; } 
+        body { background: #1a1a1a; margin: 0; display: flex; justify-content: center; min-height: 100vh; color: white; }
         
-        .search-box { background: #111; padding: 15px; border-bottom: 1px solid #222; display: flex; gap: 8px; }
-        .search-input { background: #222; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; flex-grow: 1; outline: none; font-size: 1rem; }
-        .search-btn { background: var(--p); border: none; color: #fff; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; }
-        
-        .tabs { display: flex; background: #111; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10; }
-        .tab { flex: 1; padding: 18px; text-align: center; font-size: 0.9rem; font-weight: 900; color: #555; cursor: pointer; text-transform: uppercase; }
-        .tab.active { color: var(--p); border-bottom: 4px solid var(--p); background: #18181b; }
+        .phone-container { width: 100%; max-width: 450px; background: var(--bg); display: flex; flex-direction: column; }
+
+        /* BUSCADOR */
+        .search-container {
+            padding: 10px; background: #222; display: flex; gap: 5px;
+            border-bottom: 1px solid #444; position: sticky; top: 0; z-index: 101;
+        }
+        #search-input {
+            flex-grow: 1; padding: 12px; border-radius: 10px; border: 2px solid #444;
+            background: #000; color: white; font-size: 1rem;
+        }
+        #search-input.error { border-color: var(--danger); }
+        .search-btn {
+            padding: 10px 15px; background: var(--high); border: none; 
+            border-radius: 10px; color: white; font-weight: bold; cursor: pointer;
+        }
+
+        .header-title { 
+            background: #111; color: #888; text-align: center; 
+            padding: 8px; font-size: 0.9rem; text-transform: uppercase;
+        }
+
+        #section-24h, #section-15d { padding: 5px; flex-grow: 1; margin-bottom: 80px; }
+        #section-15d { display: none; }
 
         .card { 
-            display: flex; 
-            align-items: center; 
-            padding: 15px 12px; 
-            border-bottom: 0.5px solid rgba(255, 255, 255, 0.1); 
-            border-left: 10px solid #333; 
-            height: 90px;
-            box-sizing: border-box;
+            border-radius: 18px; padding: 4px; margin-bottom: 6px;
+            display: grid; gap: 4px; border: 3px solid transparent; height: 110px;
+            grid-template-columns: 90px 1fr 1fr 1fr;
         }
-        
-        .time-label { min-width: 65px; font-weight: 800; font-size: 1.1rem; color: #aaa; }
-        .temp-main { min-width: 100px; text-align: center; display: flex; flex-direction: column; }
-        .temp-val { font-size: 2.4rem; font-weight: 950; display: block; line-height: 0.85; }
-        .temp-range { font-size: 1.1rem; font-weight: 800; display: flex; justify-content: center; gap: 6px; margin-top: 5px; }
-        .t-max { color: #ff6b6b; }
-        .t-min { color: #4dadff; }
-        .temp-sub { font-size: 0.75rem; color: #666; font-weight: 800; text-transform: uppercase; }
-        
-        .icon { flex-grow: 1; text-align: center; font-size: 2.5rem; }
-        .stats { text-align: right; min-width: 110px; }
-        .val { font-size: 1.7rem; font-weight: 900; display: inline-block; line-height: 1; }
-        .label { font-size: 0.7rem; color: #666; font-weight: 900; text-transform: uppercase; margin-right: 4px; }
 
-        .risk-danger { border-left-color: var(--danger); } 
-        .risk-warn { border-left-color: var(--warn); }   
-        .risk-safe { border-left-color: var(--safe); }                        
+        .risk-low { background: var(--low); border-color: var(--low); }
+        .risk-med { background: var(--med); border-color: var(--med); }
+        .risk-high { background: var(--high); border-color: var(--high); }
 
-        #loader { text-align: center; padding: 40px; color: #444; font-weight: bold; display: none; }
+        .sub-box { 
+            border-radius: 12px; display: flex; flex-direction: column; 
+            align-items: center; color: white; background: var(--bg); 
+            padding: 4px 2px; overflow: hidden; justify-content: space-between;
+        }
+
+        .label { align-self: stretch; text-align: center; font-size: 0.55rem; text-transform: uppercase; opacity: 0.8; }
+        .time-tag-big { font-size: 1.1rem; margin-top: 2px; text-transform: uppercase; }
+        .weather-icon-big { font-size: 3.3rem; line-height: 0.7; margin: auto 0; }
+
+        .c-cold { color: var(--cold); } .c-hot { color: var(--hot); } .c-danger { color: var(--danger); }
+
+        .val-big { font-size: 2.5rem; font-weight: 900; line-height: 0.75; letter-spacing: -1.5px; margin: auto 0; } 
+        .val-small { font-size: 1rem; font-weight: bold; margin-bottom: 2px; }
+
+        .nav-bar { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2px; 
+            background: #222; padding: 10px; position: fixed; bottom: 0; width: 100%; max-width: 450px;
+        }
+        .nav-btn { 
+            background: #333; color: #888; border: none; padding: 16px; 
+            border-radius: 12px; font-size: 1.1rem; font-weight: 900;
+        }
+        .nav-btn.active { background: #444; color: #fff; }
     </style>
 </head>
 <body onload="init()">
 
 <div class="phone-container">
-    <div class="search-box">
-        <input type="text" id="loc-input" class="search-input" placeholder="Ciudad..." value="Alcorcón">
-        <button onclick="handleSearch()" class="search-btn">IR</button>
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="Buscar ciudad (Ej: Madrid)...">
+        <button class="search-btn" onclick="searchCity()">OK</button>
     </div>
+    <div class="header-title" id="location-name">Cargando...</div>
+    
+    <div id="section-24h"></div>
+    <div id="section-15d"></div>
 
-    <div class="tabs">
-        <div class="tab active" id="tab-hourly" onclick="switchTab('hourly')">24 HORAS</div>
-        <div class="tab" id="tab-daily" onclick="switchTab('daily')">15 DÍAS</div>
-    </div>
-
-    <div id="loader">CARGANDO...</div>
-    <div id="view-container"></div>
+    <nav class="nav-bar">
+        <button id="btn-24h" class="nav-btn active" onclick="showSection('24h')">24H</button>
+        <button id="btn-15d" class="nav-btn" onclick="showSection('15d')">15 DÍAS</button>
+    </nav>
 </div>
 
 <script>
-let currentLat = 40.3366, currentLon = -3.8369;
-let weatherData = null;
-let currentMode = 'hourly';
+let currentLat = 40.4167, currentLon = -3.7033; // Madrid por defecto
+const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 61: "🌧️", 71: "❄️", 80: "🌦️", 95: "⛈️" };
 
-const icons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌦️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "❄️", 80: "🌧️", 81: "🌧️", 82: "🌧️", 95: "⛈️" };
+async function searchCity() {
+    const input = document.getElementById('search-input');
+    const query = input.value.trim();
+    if (!query) return;
 
-async function init() { await fetchData(); }
+    try {
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=1&language=es&format=json`);
+        const data = await res.json();
 
-async function handleSearch() {
-    const q = document.getElementById('loc-input').value;
-    if (!q) return;
-    document.getElementById('loader').style.display = 'block';
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
-    const data = await res.json();
-    if (data.length > 0) {
-        currentLat = data[0].lat; currentLon = data[0].lon;
-        await fetchData();
-    }
-}
-
-async function fetchData() {
-    document.getElementById('loader').style.display = 'block';
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=16`;
-    const res = await fetch(url);
-    weatherData = await res.json();
-    document.getElementById('loader').style.display = 'none';
-    render();
-}
-
-function switchTab(mode) {
-    currentMode = mode;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById(`tab-${mode}`).classList.add('active');
-    render();
-}
-
-function getRiskInfo(gusts, rainProb) {
-    // Peligro: Viento > 25 o Lluvia > 30%
-    if (gusts > 25 || rainProb > 30) return { class: 'risk-danger', color: 'var(--danger)' };
-    // Precaución: Viento entre 16-25 o Lluvia entre 1-30%
-    if (gusts > 15 || rainProb > 0) return { class: 'risk-warn', color: 'var(--warn)' };
-    // Día perfecto: Viento <= 15 y 0% Lluvia
-    return { class: 'risk-safe', color: 'var(--safe)' };
-}
-
-function render() {
-    if(!weatherData) return;
-    const container = document.getElementById('view-container');
-    container.innerHTML = '';
-    
-    if(currentMode === 'hourly') {
-        const h = weatherData.hourly;
-        const now = new Date();
-        const currentHourStr = now.toISOString().split('T')[0] + "T" + now.getHours().toString().padStart(2, '0') + ":00";
-        let startIndex = h.time.findIndex(t => t.startsWith(currentHourStr));
-        if (startIndex === -1) startIndex = 0;
-
-        for(let i = startIndex; i < startIndex + 24; i++) {
-            const gusts = Math.round(h.wind_gusts_10m[i]);
-            const rain = h.precipitation_probability[i];
-            const risk = getRiskInfo(gusts, rain);
-            
-            container.innerHTML += `
-                <div class="card ${risk.class}">
-                    <div class="time-label">${h.time[i].split('T')[1]}</div>
-                    <div class="temp-main">
-                        <span class="temp-val">${Math.round(h.temperature_2m[i])}°</span>
-                        <span class="temp-sub">SENS. ${Math.round(h.apparent_temperature[i])}°</span>
-                    </div>
-                    <div class="icon">${icons[h.weather_code[i]] || "🌤️"}</div>
-                    <div class="stats">
-                        <div><span class="label">VIENTO</span><span class="val" style="color:${risk.color}">${gusts}</span></div>
-                        <div><span class="label">LLUVIA</span><span class="val" style="color:${rain > 0 ? '#4dadff' : '#444'}">${rain}%</span></div>
-                    </div>
-                </div>`;
+        if (data.results && data.results.length > 0) {
+            const city = data.results[0];
+            input.classList.remove('error');
+            currentLat = city.latitude;
+            currentLon = city.longitude;
+            document.getElementById('location-name').innerText = `${city.name}, ${city.admin1 || city.country}`;
+            fetchWeather();
+        } else {
+            input.classList.add('error');
+            alert("Ubicación no encontrada");
         }
-    } else {
-        const d = weatherData.daily;
-        for(let i=0; i<15; i++) {
-            const dateObj = new Date(d.time[i]);
-            const gusts = Math.round(d.wind_gusts_10m_max[i]);
-            const rain = d.precipitation_probability_max[i];
-            const risk = getRiskInfo(gusts, rain);
+    } catch (e) { alert("Error en la búsqueda"); }
+}
 
-            container.innerHTML += `
-                <div class="card ${risk.class}">
-                    <div class="time-label">
-                        <span style="text-transform: capitalize; color: var(--p)">${dateObj.toLocaleDateString('es-ES', {weekday: 'short'})}</span><br>
-                        <span style="font-size: 1.1rem; color:#666">${dateObj.getDate()}</span>
-                    </div>
-                    <div class="temp-main">
-                        <div class="temp-range">
-                            <span class="t-max">${Math.round(d.temperature_2m_max[i])}°</span>
-                            <span class="t-min">${Math.round(d.temperature_2m_min[i])}°</span>
-                        </div>
-                        <span class="temp-sub">MAX / MIN</span>
-                    </div>
-                    <div class="icon">${icons[d.weather_code[i]] || "🌤️"}</div>
-                    <div class="stats">
-                        <div><span class="label">VIENTO</span><span class="val" style="color:${risk.color}">${gusts}</span></div>
-                        <div><span class="label">LLUVIA</span><span class="val" style="color:${rain > 0 ? '#4dadff' : '#444'}">${rain}%</span></div>
-                    </div>
-                </div>`;
-        }
+async function fetchWeather() {
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max&timezone=auto&forecast_days=16`);
+        const data = await res.json();
+        render24h(data.hourly);
+        render15d(data.daily);
+    } catch (e) { console.error(e); }
+}
+
+function createCard(title, iconCode, t1, t2, p1, p2, w1, w2) {
+    const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
+    return `
+    <div class="card ${risk}">
+        <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode] || "🌤️"}</div></div>
+        <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${t1<12?'c-cold':t1>27?'c-danger':''}">${t1}°</span><span class="val-small">${t2}°</span></div>
+        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${p1>20?'c-danger':''}">${p1}%</span><span class="val-small">${p2>0?p2.toFixed(1)+'m':''}</span></div>
+        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${w1>25?'c-danger':''}">${w1}</span><span class="val-small">${w2>0?'('+w2+')':''}</span></div>
+    </div>`;
+}
+
+function render24h(h) {
+    const list = document.getElementById('section-24h');
+    const nowIdx = new Date().getHours();
+    let html = '';
+    for (let i = 0; i < 24; i++) {
+        const idx = nowIdx + i;
+        const d = new Date(h.time[idx]);
+        html += createCard(`${d.getHours()}:00`, h.weather_code[idx], Math.round(h.temperature_2m[idx]), Math.round(h.apparent_temperature[idx]), h.precipitation_probability[idx], h.precipitation[idx], Math.round(h.wind_speed_10m[idx]), Math.round(h.wind_gusts_10m[idx]));
     }
+    list.innerHTML = html;
+}
+
+function render15d(d) {
+    const list = document.getElementById('section-15d');
+    let html = '';
+    for (let i = 0; i < 15; i++) {
+        const date = new Date(d.time[i]);
+        const day = date.toLocaleDateString('es-ES', {weekday: 'short'}).replace('.','');
+        html += createCard(day, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]));
+    }
+    list.innerHTML = html;
+}
+
+function showSection(s) {
+    document.getElementById('section-24h').style.display = (s === '24h' ? 'block' : 'none');
+    document.getElementById('section-15d').style.display = (s === '15d' ? 'block' : 'none');
+    document.getElementById('btn-24h').className = `nav-btn ${s === '24h' ? 'active' : ''}`;
+    document.getElementById('btn-15d').className = `nav-btn ${s === '15d' ? 'active' : ''}`;
+}
+
+function init() { 
+    document.getElementById('location-name').innerText = "Madrid, España";
+    fetchWeather(); 
 }
 </script>
 </body>
