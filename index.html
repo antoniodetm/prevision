@@ -16,7 +16,6 @@
         
         .phone-container { width: 100%; max-width: 450px; background: var(--bg); display: flex; flex-direction: column; }
 
-        /* BUSCADOR */
         .search-container {
             padding: 10px; background: #222; display: flex; gap: 5px;
             border-bottom: 1px solid #444; position: sticky; top: 0; z-index: 101;
@@ -79,7 +78,7 @@
 
 <div class="phone-container">
     <div class="search-container">
-        <input type="text" id="search-input" placeholder="Buscar ciudad (Ej: Madrid)...">
+        <input type="text" id="search-input" placeholder="Buscar ciudad...">
         <button class="search-btn" onclick="searchCity()">OK</button>
     </div>
     <div class="header-title" id="location-name">Cargando...</div>
@@ -94,30 +93,24 @@
 </div>
 
 <script>
-let currentLat = 40.4167, currentLon = -3.7033; // Madrid por defecto
-const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 61: "🌧️", 71: "❄️", 80: "🌦️", 95: "⛈️" };
+let currentLat = 40.4167, currentLon = -3.7033; 
+const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌦️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 66: "🧊", 67: "🧊", 71: "❄️", 73: "❄️", 75: "❄️", 80: "🌦️", 81: "🌦️", 82: "🌦️", 95: "⛈️", 96: "⛈️", 99: "⛈️" };
 
 async function searchCity() {
     const input = document.getElementById('search-input');
     const query = input.value.trim();
     if (!query) return;
-
     try {
         const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=1&language=es&format=json`);
         const data = await res.json();
-
         if (data.results && data.results.length > 0) {
             const city = data.results[0];
             input.classList.remove('error');
-            currentLat = city.latitude;
-            currentLon = city.longitude;
+            currentLat = city.latitude; currentLon = city.longitude;
             document.getElementById('location-name').innerText = `${city.name}, ${city.admin1 || city.country}`;
             fetchWeather();
-        } else {
-            input.classList.add('error');
-            alert("Ubicación no encontrada");
-        }
-    } catch (e) { alert("Error en la búsqueda"); }
+        } else { input.classList.add('error'); }
+    } catch (e) { console.error(e); }
 }
 
 async function fetchWeather() {
@@ -131,12 +124,19 @@ async function fetchWeather() {
 
 function createCard(title, iconCode, t1, t2, p1, p2, w1, w2) {
     const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
+    
+    // Lógica para ocultar ceros
+    const displayP1 = p1 > 0 ? p1 + '%' : '';
+    const displayP2 = p2 > 0 ? p2.toFixed(1) + 'm' : '';
+    const displayW1 = w1 > 0 ? w1 : '';
+    const displayW2 = w2 > 0 ? '(' + w2 + ')' : '';
+
     return `
     <div class="card ${risk}">
         <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode] || "🌤️"}</div></div>
         <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${t1<12?'c-cold':t1>27?'c-danger':''}">${t1}°</span><span class="val-small">${t2}°</span></div>
-        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${p1>20?'c-danger':''}">${p1}%</span><span class="val-small">${p2>0?p2.toFixed(1)+'m':''}</span></div>
-        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${w1>25?'c-danger':''}">${w1}</span><span class="val-small">${w2>0?'('+w2+')':''}</span></div>
+        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${p1>20?'c-danger':''}">${displayP1}</span><span class="val-small">${displayP2}</span></div>
+        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${w1>25?'c-danger':''}">${displayW1}</span><span class="val-small">${displayW2}</span></div>
     </div>`;
 }
 
@@ -146,6 +146,7 @@ function render24h(h) {
     let html = '';
     for (let i = 0; i < 24; i++) {
         const idx = nowIdx + i;
+        if (!h.time[idx]) break;
         const d = new Date(h.time[idx]);
         html += createCard(`${d.getHours()}:00`, h.weather_code[idx], Math.round(h.temperature_2m[idx]), Math.round(h.apparent_temperature[idx]), h.precipitation_probability[idx], h.precipitation[idx], Math.round(h.wind_speed_10m[idx]), Math.round(h.wind_gusts_10m[idx]));
     }
