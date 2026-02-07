@@ -12,36 +12,29 @@
         }
         
         * { box-sizing: border-box; font-family: 'Arial Black', sans-serif; } 
-        body { background: #1a1a1a; margin: 0; display: flex; justify-content: center; min-height: 100vh; color: white; }
+        body { background: #1a1a1a; margin: 0; display: flex; justify-content: center; min-height: 100vh; color: white; overflow-x: hidden; }
         
         .phone-container { width: 100%; max-width: 450px; background: var(--bg); display: flex; flex-direction: column; }
 
-        .search-container {
-            padding: 10px; background: #222; display: flex; gap: 5px;
-            border-bottom: 1px solid #444; position: sticky; top: 0; z-index: 101;
-        }
-        #search-input {
-            flex-grow: 1; padding: 12px; border-radius: 10px; border: 2px solid #444;
-            background: #000; color: white; font-size: 1rem;
-        }
-        #search-input.error { border-color: var(--danger); }
-        .search-btn {
-            padding: 10px 15px; background: var(--high); border: none; 
-            border-radius: 10px; color: white; font-weight: bold; cursor: pointer;
-        }
-
         .header-title { 
-            background: #111; color: #888; text-align: center; 
-            padding: 8px; font-size: 0.9rem; text-transform: uppercase;
+            background: #222; color: white; text-align: center; 
+            padding: 10px; font-size: 1.1rem; text-transform: uppercase;
+            position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #333;
         }
 
-        #section-24h, #section-15d { padding: 5px; flex-grow: 1; margin-bottom: 80px; }
+        #section-48h, #section-15d { padding: 5px; flex-grow: 1; margin-bottom: 80px; }
         #section-15d { display: none; }
+
+        .day-divider {
+            background: #222; color: #7dd3fc; padding: 12px; text-align: center;
+            font-size: 0.85rem; border-radius: 8px; margin: 15px 0 8px 0;
+            border-left: 5px solid var(--med); letter-spacing: 1px;
+        }
 
         .card { 
             border-radius: 18px; padding: 4px; margin-bottom: 6px;
             display: grid; gap: 4px; border: 3px solid transparent; height: 110px;
-            grid-template-columns: 90px 1fr 1fr 1fr;
+            grid-template-columns: 90px 1fr 1fr 1fr; cursor: pointer;
         }
 
         .risk-low { background: var(--low); border-color: var(--low); }
@@ -58,10 +51,24 @@
         .time-tag-big { font-size: 1.1rem; margin-top: 2px; text-transform: uppercase; }
         .weather-icon-big { font-size: 3.3rem; line-height: 0.7; margin: auto 0; }
 
-        .c-cold { color: var(--cold); } .c-hot { color: var(--hot); } .c-danger { color: var(--danger); }
-
         .val-big { font-size: 2.5rem; font-weight: 900; line-height: 0.75; letter-spacing: -1.5px; margin: auto 0; } 
         .val-small { font-size: 1rem; font-weight: bold; margin-bottom: 2px; }
+
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.98); z-index: 200; padding: 15px; overflow-y: auto;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .close-btn { background: var(--danger); border: none; color: white; padding: 12px 20px; border-radius: 10px; font-weight: 900; font-size: 1.2rem; }
+        
+        .grid-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .detail-item { 
+            background: #111; padding: 15px; border-radius: 16px; border: 2px solid #333; 
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .detail-item span:first-child { color: var(--med); font-size: 0.7rem; text-transform: uppercase; margin-bottom: 8px; font-weight: bold; }
+        .detail-item .num-heavy { font-size: 2.2rem; font-weight: 900; color: #fff; line-height: 1; }
+        .detail-item .unit { font-size: 0.9rem; color: #888; margin-left: 2px; }
 
         .nav-bar { 
             display: grid; grid-template-columns: 1fr 1fr; gap: 2px; 
@@ -76,79 +83,90 @@
 </head>
 <body onload="init()">
 
-<div class="phone-container">
-    <div class="search-container">
-        <input type="text" id="search-input" placeholder="Buscar ciudad...">
-        <button class="search-btn" onclick="searchCity()">OK</button>
+<div id="detail-modal" class="modal">
+    <div class="modal-header">
+        <h2 id="modal-date" style="margin:0; font-size: 1.4rem; color: var(--med);"></h2>
+        <button class="close-btn" onclick="closeModal()">X</button>
     </div>
-    <div class="header-title" id="location-name">Cargando...</div>
-    
-    <div id="section-24h"></div>
+    <div id="modal-body" class="grid-detail"></div>
+</div>
+
+<div class="phone-container">
+    <div class="header-title" id="main-title">Próximas 48 Horas</div>
+    <div id="section-48h"></div>
     <div id="section-15d"></div>
 
     <nav class="nav-bar">
-        <button id="btn-24h" class="nav-btn active" onclick="showSection('24h')">24H</button>
+        <button id="btn-48h" class="nav-btn active" onclick="showSection('48h')">48 HORAS</button>
         <button id="btn-15d" class="nav-btn" onclick="showSection('15d')">15 DÍAS</button>
     </nav>
 </div>
 
 <script>
-let currentLat = 40.4167, currentLon = -3.7033; 
-const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌦️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 66: "🧊", 67: "🧊", 71: "❄️", 73: "❄️", 75: "❄️", 80: "🌦️", 81: "🌦️", 82: "🌦️", 95: "⛈️", 96: "⛈️", 99: "⛈️" };
+const LAT = 40.342, LON = -3.831;
+let dailyData = null; 
+const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
 
-async function searchCity() {
-    const input = document.getElementById('search-input');
-    const query = input.value.trim();
-    if (!query) return;
-    try {
-        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=1&language=es&format=json`);
-        const data = await res.json();
-        if (data.results && data.results.length > 0) {
-            const city = data.results[0];
-            input.classList.remove('error');
-            currentLat = city.latitude; currentLon = city.longitude;
-            document.getElementById('location-name').innerText = `${city.name}, ${city.admin1 || city.country}`;
-            fetchWeather();
-        } else { input.classList.add('error'); }
-    } catch (e) { console.error(e); }
+async function init() {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset,uv_index_max,sunshine_duration,et0_fao_evapotranspiration&timezone=auto&forecast_days=16`;
+    const res = await fetch(url);
+    const data = await res.json();
+    dailyData = data.daily;
+    render48h(data.hourly);
+    render15d(data.daily);
 }
 
-async function fetchWeather() {
-    try {
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max&timezone=auto&forecast_days=16`);
-        const data = await res.json();
-        render24h(data.hourly);
-        render15d(data.daily);
-    } catch (e) { console.error(e); }
-}
-
-function createCard(title, iconCode, t1, t2, p1, p2, w1, w2) {
-    const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
+function openDetail(i) {
+    const d = dailyData;
+    const date = new Date(d.time[i]).toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'}).toUpperCase();
     
-    // Lógica para ocultar ceros
-    const displayP1 = p1 > 0 ? p1 + '%' : '';
-    const displayP2 = p2 > 0 ? p2.toFixed(1) + 'm' : '';
-    const displayW1 = w1 > 0 ? w1 : '';
-    const displayW2 = w2 > 0 ? '(' + w2 + ')' : '';
+    document.getElementById('modal-date').innerText = date;
+    document.getElementById('modal-body').innerHTML = `
+        <div class="detail-item"><span>🌡️ TEMP MÁX</span><div class="num-heavy">${Math.round(d.temperature_2m_max[i])}<span class="unit">°C</span></div></div>
+        <div class="detail-item"><span>❄️ TEMP MÍN</span><div class="num-heavy">${Math.round(d.temperature_2m_min[i])}<span class="unit">°C</span></div></div>
+        <div class="detail-item"><span>🔥 SENSACIÓN</span><div class="num-heavy">${Math.round(d.apparent_temperature_max[i])}<span class="unit">°C</span></div></div>
+        <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i]>6?'var(--danger)':'#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
+        <div class="detail-item"><span>💨 RACHA MÁX</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
+        <div class="detail-item"><span>🌧️ LLUVIA TOTAL</span><div class="num-heavy">${d.precipitation_sum[i]}<span class="unit">mm</span></div></div>
+        <div class="detail-item"><span>💧 PROB. LLUVIA</span><div class="num-heavy">${d.precipitation_probability_max[i]}<span class="unit">%</span></div></div>
+        <div class="detail-item"><span>⏱️ LUZ SOLAR</span><div class="num-heavy">${(d.sunshine_duration[i]/3600).toFixed(1)}<span class="unit">h</span></div></div>
+        <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].split('T')[1]}</div></div>
+        <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].split('T')[1]}</div></div>
+    `;
+    document.getElementById('detail-modal').style.display = 'block';
+}
 
-    return `
-    <div class="card ${risk}">
-        <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode] || "🌤️"}</div></div>
-        <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${t1<12?'c-cold':t1>27?'c-danger':''}">${t1}°</span><span class="val-small">${t2}°</span></div>
-        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${p1>20?'c-danger':''}">${displayP1}</span><span class="val-small">${displayP2}</span></div>
-        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${w1>25?'c-danger':''}">${displayW1}</span><span class="val-small">${displayW2}</span></div>
+function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
+
+function createCard(title, iconCode, t1, t2, p1, p2, w1, w2, index = null) {
+    const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
+    const click = index !== null ? `onclick="openDetail(${index})"` : '';
+    return `<div class="card ${risk}" ${click}>
+        <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode]||"🌤️"}</div></div>
+        <div class="sub-box"><span class="label">TEMP</span><span class="val-big">${t1}°</span><span class="val-small">${t2}°</span></div>
+        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big">${p1}%</span><span class="val-small">${p2>0?p2.toFixed(1)+'m':''}</span></div>
+        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big">${w1}</span><span class="val-small">(${w2})</span></div>
     </div>`;
 }
 
-function render24h(h) {
-    const list = document.getElementById('section-24h');
-    const nowIdx = new Date().getHours();
-    let html = '';
-    for (let i = 0; i < 24; i++) {
-        const idx = nowIdx + i;
-        if (!h.time[idx]) break;
-        const d = new Date(h.time[idx]);
-        html += createCard(`${d.getHours()}:00`, h.weather_code[idx], Math.round(h.temperature_2m[idx]), Math.round(h.apparent_temperature[idx]), h.precipitation_probability[idx], h.precipitation[idx], Math.round(h.wind_speed_10m[idx]), Math.round(h.wind_gusts_10m[idx]));
+function render48h(h) {
+    const list = document.getElementById('section-48h');
+    let html = ''; 
+    const today = new Date().getDate();
+    let lastDay = -1;
+
+    for (let i = 0; i < 48; i++) {
+        const d = new Date(h.time[i]);
+        const currentDay = d.getDate();
+
+        if (currentDay !== lastDay) {
+            // Solo añadir el divisor si el día NO es hoy
+            if (currentDay !== today) {
+                html += `<div class="day-divider">${d.toLocaleDateString('es-ES',{weekday:'long', day:'numeric'}).toUpperCase()}</div>`;
+            }
+            lastDay = currentDay;
+        }
+        html += createCard(`${d.getHours()}:00`, h.weather_code[i], Math.round(h.temperature_2m[i]), Math.round(h.apparent_temperature[i]), h.precipitation_probability[i], h.precipitation[i], Math.round(h.wind_speed_10m[i]), Math.round(h.wind_gusts_10m[i]));
     }
     list.innerHTML = html;
 }
@@ -158,22 +176,17 @@ function render15d(d) {
     let html = '';
     for (let i = 0; i < 15; i++) {
         const date = new Date(d.time[i]);
-        const day = date.toLocaleDateString('es-ES', {weekday: 'short'}).replace('.','');
-        html += createCard(day, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]));
+        html += createCard(date.toLocaleDateString('es-ES',{weekday:'short'}).toUpperCase(), d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
     }
     list.innerHTML = html;
 }
 
 function showSection(s) {
-    document.getElementById('section-24h').style.display = (s === '24h' ? 'block' : 'none');
-    document.getElementById('section-15d').style.display = (s === '15d' ? 'block' : 'none');
-    document.getElementById('btn-24h').className = `nav-btn ${s === '24h' ? 'active' : ''}`;
-    document.getElementById('btn-15d').className = `nav-btn ${s === '15d' ? 'active' : ''}`;
-}
-
-function init() { 
-    document.getElementById('location-name').innerText = "Madrid, España";
-    fetchWeather(); 
+    document.getElementById('section-48h').style.display = s==='48h'?'block':'none';
+    document.getElementById('section-15d').style.display = s==='15d'?'block':'none';
+    document.getElementById('btn-48h').className = `nav-btn ${s==='48h'?'active':''}`;
+    document.getElementById('btn-15d').className = `nav-btn ${s==='15d'?'active':''}`;
+    document.getElementById('main-title').innerText = s==='48h'?'Próximas 48 Horas':'Previsión 15 Días';
 }
 </script>
 </body>
