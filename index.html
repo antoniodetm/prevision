@@ -20,7 +20,12 @@
             background: #222; color: white; text-align: center; 
             padding: 10px; font-size: 1.1rem; text-transform: uppercase;
             position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #333;
+            display: flex; justify-content: space-between; align-items: center;
         }
+
+        .header-btns { display: flex; align-items: center; gap: 5px; }
+        .loc-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; padding: 5px; }
+        .accu-header-btn { background: #f58220; border: none; border-radius: 6px; padding: 5px 8px; font-size: 0.7rem; font-weight: 900; color: black; text-decoration: none; }
 
         #section-48h, #section-15d { padding: 5px; flex-grow: 1; margin-bottom: 80px; }
         #section-15d { display: none; }
@@ -53,6 +58,13 @@
 
         .val-big { font-size: 2.5rem; font-weight: 900; line-height: 0.75; letter-spacing: -1.5px; margin: auto 0; } 
         .val-small { font-size: 1rem; font-weight: bold; margin-bottom: 2px; }
+
+        .color-temp-hot { color: #fb923c; }
+        .color-temp-cold { color: #38bdf8; }
+        .color-rain { color: #60a5fa; }
+        .color-wind-warn { color: #facc15; }
+        .color-wind-danger { color: #ef4444; }
+        .dim { opacity: 0.3; }
 
         .modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -92,7 +104,15 @@
 </div>
 
 <div class="phone-container">
-    <div class="header-title" id="main-title">Próximas 48 Horas</div>
+    <div class="header-title">
+        <div class="header-btns">
+            <button class="loc-btn" onclick="searchCity()">🔍</button>
+            <a id="accu-now-link" href="#" target="_blank" class="accu-header-btn">ACCU NOW</a>
+        </div>
+        <span id="main-title">Próximas 48 Horas</span>
+        <div style="width:40px"></div> 
+    </div>
+    
     <div id="section-48h"></div>
     <div id="section-15d"></div>
 
@@ -103,11 +123,44 @@
 </div>
 
 <script>
-const LAT = 40.342, LON = -3.831;
+let LAT = 40.342, LON = -3.831; 
 let dailyData = null; 
 const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
 
 async function init() {
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { LAT = pos.coords.latitude; LON = pos.coords.longitude; updateLinks(); fetchWeather(); },
+            () => {
+                const savedLat = localStorage.getItem('lat');
+                const savedLon = localStorage.getItem('lon');
+                if(savedLat && savedLon) { LAT = savedLat; LON = savedLon; }
+                updateLinks(); fetchWeather();
+            }
+        );
+    } else { updateLinks(); fetchWeather(); }
+}
+
+function updateLinks() {
+    document.getElementById('accu-now-link').href = `https://www.accuweather.com/es/search-locations?query=${LAT},${LON}`;
+}
+
+async function searchCity() {
+    const city = prompt("Escribe el nombre de la ciudad:");
+    if (city) {
+        try {
+            const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1&language=es&format=json`);
+            const data = await res.json();
+            if (data.results && data.results[0]) {
+                LAT = data.results[0].latitude; LON = data.results[0].longitude;
+                localStorage.setItem('lat', LAT); localStorage.setItem('lon', LON);
+                updateLinks(); fetchWeather();
+            } else { alert("No se encontró la ciudad."); }
+        } catch (e) { alert("Error al buscar."); }
+    }
+}
+
+async function fetchWeather() {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset,uv_index_max,sunshine_duration,et0_fao_evapotranspiration&timezone=auto&forecast_days=16`;
     const res = await fetch(url);
     const data = await res.json();
@@ -116,55 +169,44 @@ async function init() {
     render15d(data.daily);
 }
 
-function openDetail(i) {
-    const d = dailyData;
-    const date = new Date(d.time[i]).toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'}).toUpperCase();
-    
-    document.getElementById('modal-date').innerText = date;
-    document.getElementById('modal-body').innerHTML = `
-        <div class="detail-item"><span>🌡️ TEMP MÁX</span><div class="num-heavy">${Math.round(d.temperature_2m_max[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>❄️ TEMP MÍN</span><div class="num-heavy">${Math.round(d.temperature_2m_min[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>🔥 SENSACIÓN</span><div class="num-heavy">${Math.round(d.apparent_temperature_max[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i]>6?'var(--danger)':'#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
-        <div class="detail-item"><span>💨 RACHA MÁX</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
-        <div class="detail-item"><span>🌧️ LLUVIA TOTAL</span><div class="num-heavy">${d.precipitation_sum[i]}<span class="unit">mm</span></div></div>
-        <div class="detail-item"><span>💧 PROB. LLUVIA</span><div class="num-heavy">${d.precipitation_probability_max[i]}<span class="unit">%</span></div></div>
-        <div class="detail-item"><span>⏱️ LUZ SOLAR</span><div class="num-heavy">${(d.sunshine_duration[i]/3600).toFixed(1)}<span class="unit">h</span></div></div>
-        <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].split('T')[1]}</div></div>
-        <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].split('T')[1]}</div></div>
-    `;
-    document.getElementById('detail-modal').style.display = 'block';
-}
-
 function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
 
 function createCard(title, iconCode, t1, t2, p1, p2, w1, w2, index = null) {
     const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
     const click = index !== null ? `onclick="openDetail(${index})"` : '';
+    const tClass = t1 > 28 ? 'color-temp-hot' : (t1 < 10 ? 'color-temp-cold' : '');
+    const pClass = p1 > 0 ? 'color-rain' : 'dim';
+    const wClass = w1 > 25 ? 'color-wind-danger' : (w1 > 15 ? 'color-wind-warn' : '');
+    const rainMain = p1 > 0 ? p1 + '%' : '<span class="dim">-</span>';
+    const rainSub = p2 > 0 ? p2.toFixed(1) + 'm' : '';
+    const windSub = w2 > 0 ? `(${w2})` : '';
+
     return `<div class="card ${risk}" ${click}>
         <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode]||"🌤️"}</div></div>
-        <div class="sub-box"><span class="label">TEMP</span><span class="val-big">${t1}°</span><span class="val-small">${t2}°</span></div>
-        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big">${p1}%</span><span class="val-small">${p2>0?p2.toFixed(1)+'m':''}</span></div>
-        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big">${w1}</span><span class="val-small">(${w2})</span></div>
+        <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${tClass}">${t1}°</span><span class="val-small">${t2}°</span></div>
+        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${pClass}">${rainMain}</span><span class="val-small">${rainSub}</span></div>
+        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${wClass}">${w1}</span><span class="val-small">${windSub}</span></div>
     </div>`;
 }
 
 function render48h(h) {
     const list = document.getElementById('section-48h');
-    let html = ''; 
-    const today = new Date().getDate();
+    let html = '';
+    const now = new Date();
+    const currentHour = now.getHours();
+    const today = now.getDate();
+    let startIndex = h.time.findIndex(t => {
+        const d = new Date(t);
+        return d.getDate() === today && d.getHours() === currentHour;
+    });
+    if (startIndex === -1) startIndex = 0;
     let lastDay = -1;
-
-    for (let i = 0; i < 48; i++) {
+    for (let i = startIndex; i < startIndex + 48; i++) {
+        if (!h.time[i]) break;
         const d = new Date(h.time[i]);
-        const currentDay = d.getDate();
-
-        if (currentDay !== lastDay) {
-            // Solo añadir el divisor si el día NO es hoy
-            if (currentDay !== today) {
-                html += `<div class="day-divider">${d.toLocaleDateString('es-ES',{weekday:'long', day:'numeric'}).toUpperCase()}</div>`;
-            }
-            lastDay = currentDay;
+        if (d.getDate() !== lastDay) {
+            if (i !== startIndex) html += `<div class="day-divider">${d.toLocaleDateString('es-ES',{weekday:'long', day:'numeric'}).toUpperCase()}</div>`;
+            lastDay = d.getDate();
         }
         html += createCard(`${d.getHours()}:00`, h.weather_code[i], Math.round(h.temperature_2m[i]), Math.round(h.apparent_temperature[i]), h.precipitation_probability[i], h.precipitation[i], Math.round(h.wind_speed_10m[i]), Math.round(h.wind_gusts_10m[i]));
     }
@@ -176,9 +218,28 @@ function render15d(d) {
     let html = '';
     for (let i = 0; i < 15; i++) {
         const date = new Date(d.time[i]);
-        html += createCard(date.toLocaleDateString('es-ES',{weekday:'short'}).toUpperCase(), d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
+        html += createCard(date.toLocaleDateString('es-ES',{weekday:'short'}).toUpperCase().replace('.',''), d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
     }
     list.innerHTML = html;
+}
+
+function openDetail(i) {
+    const d = dailyData;
+    const dateStr = new Date(d.time[i]).toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'}).toUpperCase();
+    
+    document.getElementById('modal-date').innerText = dateStr;
+    document.getElementById('modal-body').innerHTML = `
+        <div class="detail-item"><span>🌡️ TEMP MÁX</span><div class="num-heavy">${Math.round(d.temperature_2m_max[i])}<span class="unit">°C</span></div></div>
+        <div class="detail-item"><span>❄️ TEMP MÍN</span><div class="num-heavy">${Math.round(d.temperature_2m_min[i])}<span class="unit">°C</span></div></div>
+        <div class="detail-item"><span>🔥 SENSACIÓN</span><div class="num-heavy">${Math.round(d.apparent_temperature_max[i])}<span class="unit">°C</span></div></div>
+        <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i]>6?'var(--danger)':'#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
+        <div class="detail-item"><span>💨 RACHA MÁX</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
+        <div class="detail-item"><span>🌧️ LLUVIA TOTAL</span><div class="num-heavy">${d.precipitation_sum[i]}<span class="unit">mm</span></div></div>
+        <div class="detail-item"><span>💧 PROB. LLUVIA</span><div class="num-heavy">${d.precipitation_probability_max[i]}<span class="unit">%</span></div></div>
+        <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].split('T')[1]}</div></div>
+        <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].split('T')[1]}</div></div>
+    `;
+    document.getElementById('detail-modal').style.display = 'block';
 }
 
 function showSection(s) {
