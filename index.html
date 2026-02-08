@@ -218,7 +218,9 @@ function render15d(d) {
     let html = '';
     for (let i = 0; i < 15; i++) {
         const date = new Date(d.time[i]);
-        html += createCard(date.toLocaleDateString('es-ES',{weekday:'short'}).toUpperCase().replace('.',''), d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
+        const dayLabel = date.toLocaleDateString('es-ES',{weekday:'short'}).toUpperCase().replace('.','');
+        const dayNum = date.getDate();
+        html += createCard(`${dayLabel} ${dayNum}`, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
     }
     list.innerHTML = html;
 }
