@@ -1,256 +1,649 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PREVISIÓN BICI PRO</title>
     <style>
-        :root { 
-            --low: #e0f2fe; --med: #7dd3fc; --high: #0369a1;   
-            --cold: #38bdf8; --hot: #fb923c; --danger: #ef4444; 
+        :root {
+            --low: #e0f2fe;
+            --med: #7dd3fc;
+            --high: #0369a1;
+            --cold: #38bdf8;
+            --hot: #fb923c;
+            --danger: #ef4444;
             --bg: #000;
         }
-        
-        * { box-sizing: border-box; font-family: 'Arial Black', sans-serif; } 
-        body { background: #1a1a1a; margin: 0; display: flex; justify-content: center; min-height: 100vh; color: white; overflow-x: hidden; }
-        
-        .phone-container { width: 100%; max-width: 450px; background: var(--bg); display: flex; flex-direction: column; }
 
-        .header-title { 
-            background: #222; color: white; text-align: center; 
-            padding: 10px; font-size: 1.1rem; text-transform: uppercase;
-            position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #333;
-            display: flex; justify-content: space-between; align-items: center;
+        * {
+            box-sizing: border-box;
+            font-family: 'Arial Black', sans-serif;
         }
 
-        .header-btns { display: flex; align-items: center; gap: 5px; }
-        .loc-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; padding: 5px; }
-        .accu-header-btn { background: #f58220; border: none; border-radius: 6px; padding: 5px 8px; font-size: 0.7rem; font-weight: 900; color: black; text-decoration: none; }
+        body {
+            background: #1a1a1a;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
 
-        #section-48h, #section-15d { padding: 5px; flex-grow: 1; margin-bottom: 80px; }
-        #section-15d { display: none; }
+        .phone-container {
+            width: 100%;
+            max-width: 450px;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title {
+            background: #222;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-btns {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .loc-btn {
+            background: none;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .accu-header-btn {
+            background: #f58220;
+            border: none;
+            border-radius: 6px;
+            padding: 5px 8px;
+            font-size: 0.7rem;
+            font-weight: 900;
+            color: black;
+            text-decoration: none;
+        }
+
+        #section-48h,
+        #section-15d {
+            padding: 5px;
+            flex-grow: 1;
+            margin-bottom: 80px;
+        }
+
+        #section-15d {
+            display: none;
+        }
 
         .day-divider {
-            background: #222; color: #7dd3fc; padding: 12px; text-align: center;
-            font-size: 0.85rem; border-radius: 8px; margin: 15px 0 8px 0;
-            border-left: 5px solid var(--med); letter-spacing: 1px;
+            background: #222;
+            color: #7dd3fc;
+            padding: 12px;
+            text-align: center;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            margin: 15px 0 8px 0;
+            border-left: 5px solid var(--med);
+            letter-spacing: 1px;
         }
 
-        .card { 
-            border-radius: 18px; padding: 4px; margin-bottom: 6px;
-            display: grid; gap: 4px; border: 3px solid transparent; height: 110px;
-            grid-template-columns: 90px 1fr 1fr 1fr; cursor: pointer;
+        .card {
+            border-radius: 18px;
+            padding: 4px;
+            margin-bottom: 6px;
+            display: grid;
+            gap: 4px;
+            border: 3px solid transparent;
+            height: 110px;
+            grid-template-columns: 90px 1fr 1fr 1fr;
+            cursor: pointer;
         }
 
-        .risk-low { background: var(--low); border-color: var(--low); }
-        .risk-med { background: var(--med); border-color: var(--med); }
-        .risk-high { background: var(--high); border-color: var(--high); }
-
-        .sub-box { 
-            border-radius: 12px; display: flex; flex-direction: column; 
-            align-items: center; color: white; background: var(--bg); 
-            padding: 4px 2px; overflow: hidden; justify-content: space-between;
+        .risk-low {
+            background: var(--low);
+            border-color: var(--low);
         }
 
-        .label { align-self: stretch; text-align: center; font-size: 0.55rem; text-transform: uppercase; opacity: 0.8; }
-        .time-tag-big { font-size: 1.1rem; margin-top: 2px; text-transform: uppercase; }
-        .weather-icon-big { font-size: 3.3rem; line-height: 0.7; margin: auto 0; }
+        .risk-med {
+            background: var(--med);
+            border-color: var(--med);
+        }
 
-        .val-big { font-size: 2.5rem; font-weight: 900; line-height: 0.75; letter-spacing: -1.5px; margin: auto 0; } 
-        .val-small { font-size: 1rem; font-weight: bold; margin-bottom: 2px; }
+        .risk-high {
+            background: var(--high);
+            border-color: var(--high);
+        }
 
-        .color-temp-hot { color: #fb923c; }
-        .color-temp-cold { color: #38bdf8; }
-        .color-rain { color: #60a5fa; }
-        .color-wind-warn { color: #facc15; }
-        .color-wind-danger { color: #ef4444; }
-        .dim { opacity: 0.3; }
+        .sub-box {
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            background: var(--bg);
+            padding: 4px 2px;
+            overflow: hidden;
+            justify-content: space-between;
+        }
+
+        .label {
+            align-self: stretch;
+            text-align: center;
+            font-size: 0.55rem;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .time-tag-big {
+            font-size: 1.1rem;
+            margin-top: 2px;
+            text-transform: uppercase;
+        }
+
+        .weather-icon-big {
+            font-size: 3.3rem;
+            line-height: 0.7;
+            margin: auto 0;
+        }
+
+        .val-big {
+            font-size: 2.5rem;
+            font-weight: 900;
+            line-height: 0.75;
+            letter-spacing: -1.5px;
+            margin: auto 0;
+        }
+
+        .val-small {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .color-temp-hot {
+            color: #fb923c;
+        }
+
+        .color-temp-cold {
+            color: #38bdf8;
+        }
+
+        .color-rain {
+            color: #60a5fa;
+        }
+
+        .color-wind-warn {
+            color: #facc15;
+        }
+
+        .color-wind-danger {
+            color: #ef4444;
+        }
+
+        .dim {
+            opacity: 0.3;
+        }
 
         .modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.98); z-index: 200; padding: 15px; overflow-y: auto;
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.98);
+            z-index: 200;
+            padding: 15px;
+            overflow-y: auto;
         }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-        .close-btn { background: var(--danger); border: none; color: white; padding: 12px 20px; border-radius: 10px; font-weight: 900; font-size: 1.2rem; }
-        
-        .grid-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .detail-item { 
-            background: #111; padding: 15px; border-radius: 16px; border: 2px solid #333; 
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .detail-item span:first-child { color: var(--med); font-size: 0.7rem; text-transform: uppercase; margin-bottom: 8px; font-weight: bold; }
-        .detail-item .num-heavy { font-size: 2.2rem; font-weight: 900; color: #fff; line-height: 1; }
-        .detail-item .unit { font-size: 0.9rem; color: #888; margin-left: 2px; }
 
-        .nav-bar { 
-            display: grid; grid-template-columns: 1fr 1fr; gap: 2px; 
-            background: #222; padding: 10px; position: fixed; bottom: 0; width: 100%; max-width: 450px;
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
         }
-        .nav-btn { 
-            background: #333; color: #888; border: none; padding: 16px; 
-            border-radius: 12px; font-size: 1.1rem; font-weight: 900;
+
+        .close-btn {
+            background: var(--danger);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 1.2rem;
         }
-        .nav-btn.active { background: #444; color: #fff; }
+
+        .grid-detail {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .detail-item {
+            background: #111;
+            padding: 15px;
+            border-radius: 16px;
+            border: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .detail-item span:first-child {
+            color: var(--med);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .detail-item .num-heavy {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #fff;
+            line-height: 1;
+        }
+
+        .detail-item .unit {
+            font-size: 0.9rem;
+            color: #888;
+            margin-left: 2px;
+        }
+
+        .nav-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
+            background: #222;
+            padding: 10px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .nav-btn {
+            background: #333;
+            color: #888;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 900;
+        }
+
+        .nav-btn.active {
+            background: #444;
+            color: #fff;
+        }
     </style>
 </head>
+
 <body onload="init()">
 
-<div id="detail-modal" class="modal">
-    <div class="modal-header">
-        <h2 id="modal-date" style="margin:0; font-size: 1.4rem; color: var(--med);"></h2>
-        <button class="close-btn" onclick="closeModal()">X</button>
-    </div>
-    <div id="modal-body" class="grid-detail"></div>
-</div>
-
-<div class="phone-container">
-    <div class="header-title">
-        <div class="header-btns">
-            <button class="loc-btn" onclick="searchCity()">🔍</button>
-            <a id="accu-now-link" href="#" target="_blank" class="accu-header-btn">ACCU NOW</a>
+    <div id="detail-modal" class="modal">
+        <div class="modal-header">
+            <h2 id="modal-date" style="margin:0; font-size: 1.4rem; color: var(--med);"></h2>
+            <button class="close-btn" onclick="closeModal()">X</button>
         </div>
-        <span id="main-title">Próximas 48 Horas</span>
-        <div style="width:40px"></div> 
+        <div id="modal-body" class="grid-detail"></div>
     </div>
-    
-    <div id="section-48h"></div>
-    <div id="section-15d"></div>
 
-    <nav class="nav-bar">
-        <button id="btn-48h" class="nav-btn active" onclick="showSection('48h')">48 HORAS</button>
-        <button id="btn-15d" class="nav-btn" onclick="showSection('15d')">15 DÍAS</button>
-    </nav>
-</div>
+    <div class="phone-container">
+        <div class="header-title">
+            <div class="header-btns">
+                <button class="loc-btn" onclick="searchCity()">🔍</button>
+                <a id="accu-now-link" href="#" target="_blank" class="accu-header-btn">ACCU NOW</a>
+            </div>
+            <span id="main-title">Próximas 48 Horas</span>
+            <div style="width:40px"></div>
+        </div>
 
-<script>
-let LAT = 40.342, LON = -3.831; 
-let dailyData = null; 
-const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
+        <div id="section-48h"></div>
+        <div id="section-15d"></div>
 
-async function init() {
-    if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => { LAT = pos.coords.latitude; LON = pos.coords.longitude; updateLinks(); fetchWeather(); },
-            () => {
-                const savedLat = localStorage.getItem('lat');
-                const savedLon = localStorage.getItem('lon');
-                if(savedLat && savedLon) { LAT = savedLat; LON = savedLon; }
-                updateLinks(); fetchWeather();
+        <nav class="nav-bar">
+            <button id="btn-48h" class="nav-btn active" onclick="showSection('48h')">48 HORAS</button>
+            <button id="btn-15d" class="nav-btn" onclick="showSection('15d')">15 DÍAS</button>
+        </nav>
+    </div>
+
+    <script>
+        let LAT = 40.342, LON = -3.831;
+        let dailyData = null;
+        let municipiosCache = null; // Caché para la lista de municipios
+        const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
+
+        async function init() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => { LAT = pos.coords.latitude; LON = pos.coords.longitude; updateLinks(); fetchWeather(); },
+                    () => {
+                        const savedLat = localStorage.getItem('lat');
+                        const savedLon = localStorage.getItem('lon');
+                        if (savedLat && savedLon) { LAT = savedLat; LON = savedLon; }
+                        updateLinks(); fetchWeather();
+                    }
+                );
+            } else { updateLinks(); fetchWeather(); }
+        }
+
+        function updateLinks() {
+            document.getElementById('accu-now-link').href = `https://www.accuweather.com/es/search-locations?query=${LAT},${LON}`;
+        }
+
+        async function getMunicipiosList() {
+            // Si ya tenemos la lista en caché, la devolvemos directamente.
+            if (municipiosCache) return municipiosCache;
+
+            // Si no, la pedimos a AEMET y la guardamos en caché.
+            console.log("Descargando lista de municipios de AEMET por primera vez...");
+            const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
+            const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
+            const dataMunicipiosUrl = await resMunicipiosUrl.json();
+
+            if (dataMunicipiosUrl.estado !== 200) {
+                throw new Error('No se pudo obtener la lista de municipios de AEMET.');
             }
-        );
-    } else { updateLinks(); fetchWeather(); }
-}
 
-function updateLinks() {
-    document.getElementById('accu-now-link').href = `https://www.accuweather.com/es/search-locations?query=${LAT},${LON}`;
-}
+            // La respuesta de AEMET para la lista de municipios no viene en UTF-8.
+            // Necesitamos leerla como un ArrayBuffer y decodificarla usando 'windows-1252' (o 'latin1').
+            const resMunicipiosList = await fetch(dataMunicipiosUrl.datos);
+            const buffer = await resMunicipiosList.arrayBuffer();
+            const decoder = new TextDecoder('windows-1252');
+            const municipios = JSON.parse(decoder.decode(buffer));
+            municipiosCache = municipios; // Guardamos en caché para la próxima vez
+            return municipiosCache;
+        }
 
-async function searchCity() {
-    const city = prompt("Escribe el nombre de la ciudad:");
-    if (city) {
-        try {
-            const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1&language=es&format=json`);
-            const data = await res.json();
-            if (data.results && data.results[0]) {
-                LAT = data.results[0].latitude; LON = data.results[0].longitude;
-                localStorage.setItem('lat', LAT); localStorage.setItem('lon', LON);
-                updateLinks(); fetchWeather();
-            } else { alert("No se encontró la ciudad."); }
-        } catch (e) { alert("Error al buscar."); }
-    }
-}
+        async function searchCity() {
+            const city = prompt("Escribe el nombre de la ciudad:");
+            if (!city) return;
 
-async function fetchWeather() {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_gusts_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset,uv_index_max,sunshine_duration,et0_fao_evapotranspiration&timezone=auto&forecast_days=16`;
-    const res = await fetch(url);
-    const data = await res.json();
-    dailyData = data.daily;
-    render48h(data.hourly);
-    render15d(data.daily);
-}
+            document.getElementById('section-15d').innerHTML = '<div class="day-divider">BUSCANDO MUNICIPIO...</div>';
+            document.getElementById('section-48h').innerHTML = '<div class="day-divider">BUSCANDO MUNICIPIO...</div>';
 
-function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
+            try {
+                // Normalizamos el nombre para la búsqueda (mayúsculas, sin acentos)
+                const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
-function createCard(title, iconCode, t1, t2, p1, p2, w1, w2, index = null) {
-    const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
-    const click = index !== null ? `onclick="openDetail(${index})"` : '';
-    const tClass = t1 > 28 ? 'color-temp-hot' : (t1 < 10 ? 'color-temp-cold' : '');
-    const pClass = p1 > 0 ? 'color-rain' : 'dim';
-    const wClass = w1 > 25 ? 'color-wind-danger' : (w1 > 15 ? 'color-wind-warn' : '');
-    const rainMain = p1 > 0 ? p1 + '%' : '<span class="dim">-</span>';
-    const rainSub = p2 > 0 ? p2.toFixed(1) + 'm' : '';
-    const windSub = w2 > 0 ? `(${w2})` : '';
+                // 1. Obtenemos la lista de municipios (desde la caché si es posible)
+                const municipios = await getMunicipiosList();
 
-    return `<div class="card ${risk}" ${click}>
-        <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode]||"🌤️"}</div></div>
+                // 2. Buscamos el municipio en la lista
+                const found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
+
+                if (found) {
+                    // El ID de municipio en AEMET se compone de IDPROV + MUNICIPIO
+                    const idMunicipio = found.id.substring(2);
+                    fetchWeather(idMunicipio);
+                } else {
+                    alert("No se encontró el municipio. Prueba a escribir el nombre completo sin abreviaturas.");
+                    fetchWeather(); // Volvemos a cargar el por defecto
+                }
+            } catch (e) {
+                console.error("Error al buscar municipio:", e);
+                alert("Error al buscar el municipio.");
+                fetchWeather(); // Volvemos a cargar el por defecto
+            }
+        }
+
+        async function fetchWeather(idMunicipio = '28079') { // Por defecto Madrid si no se especifica
+            document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO DATOS...</div>';
+            document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO DATOS...</div>';
+
+            const API_KEY_AEMET = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
+
+            if (API_KEY_AEMET === 'TU_API_KEY_AEMET') {
+                alert('Por favor, añade tu API Key de AEMET en el código para que funcione.');
+                return;
+            }
+
+            try {
+                // La predicción horaria de AEMET a veces falla. Es más robusto obtenerla de la predicción diaria, que sí la incluye.
+                const [dailyResult, hourlyResult] = await Promise.all([
+                    fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/diaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`),
+                    fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`)
+                ]);
+
+                // Procesar datos diarios
+                if (dailyResult) {
+                    console.log(`Datos diarios de ${dailyResult[0].nombre} recibidos de AEMET:`, dailyResult);
+                    document.getElementById('main-title').innerText = dailyResult[0].nombre.toUpperCase();
+                    const prediccionDiaria = dailyResult[0].prediccion.dia;
+                    dailyData = adaptarDatosAemet(prediccionDiaria);
+                    render15d(dailyData);
+                } else {
+                    document.getElementById('section-15d').innerHTML = '<div class="day-divider">Error al cargar predicción diaria.</div>';
+                }
+
+                // Procesar datos horarios
+                if (hourlyResult) {
+                    console.log(`Datos horarios de ${hourlyResult[0].nombre} recibidos de AEMET:`, hourlyResult);
+                    const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
+                    render48h(hourlyAdaptedData);
+                } else {
+                    document.getElementById('section-48h').innerHTML = '<div class="day-divider">Error al cargar predicción horaria.</div>';
+                }
+
+            } catch (error) {
+                console.error("Error al obtener datos de AEMET:", error);
+                alert("Hubo un error al conectar con AEMET.");
+            }
+        }
+
+        /**
+         * Función auxiliar para realizar la petición de 2 pasos a la API de AEMET
+         */
+        async function fetchAemetData(urlPeticion) {
+            try {
+                const resInicial = await fetch(urlPeticion);
+                const dataInicial = await resInicial.json();
+
+                if (dataInicial.estado === 200) {
+                    const urlDatos = dataInicial.datos;
+                    const resDatos = await fetch(urlDatos);
+                    return await resDatos.json();
+                } else {
+                    console.error(`Error con la API de AEMET (${urlPeticion}): ${dataInicial.descripcion}`);
+                    return null; // Devuelve null si hay un error específico de la API
+                }
+            } catch (e) {
+                console.error(`Fallo de red al intentar obtener datos de ${urlPeticion}`, e);
+                return null; // Devuelve null si hay un fallo de red
+            }
+        }
+
+        function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
+
+        function createCard(title, iconCode, t1, t2, p1, p2, w1, w2, index = null) {
+            const risk = (p1 > 40 || p2 > 0.5 || w1 > 30) ? 'risk-high' : (p1 > 15 || w1 > 18) ? 'risk-med' : 'risk-low';
+            const click = index !== null ? `onclick="openDetail(${index})"` : '';
+            const tClass = t1 > 28 ? 'color-temp-hot' : (t1 < 10 ? 'color-temp-cold' : '');
+            const pClass = p1 > 0 ? 'color-rain' : 'dim';
+            const wClass = w1 > 25 ? 'color-wind-danger' : (w1 > 15 ? 'color-wind-warn' : '');
+            const rainMain = p1 > 0 ? p1 + '%' : '<span class="dim">-</span>';
+            const rainSub = p2 > 0 ? p2.toFixed(1) + 'm' : '';
+            const windSub = w2 > 0 ? `(${w2})` : '';
+
+            return `<div class="card ${risk}" ${click}>
+        <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode] || "🌤️"}</div></div>
         <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${tClass}">${t1}°</span><span class="val-small">${t2}°</span></div>
         <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${pClass}">${rainMain}</span><span class="val-small">${rainSub}</span></div>
         <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${wClass}">${w1}</span><span class="val-small">${windSub}</span></div>
     </div>`;
-}
-
-function render48h(h) {
-    const list = document.getElementById('section-48h');
-    let html = '';
-    const now = new Date();
-    const currentHour = now.getHours();
-    const today = now.getDate();
-    let startIndex = h.time.findIndex(t => {
-        const d = new Date(t);
-        return d.getDate() === today && d.getHours() === currentHour;
-    });
-    if (startIndex === -1) startIndex = 0;
-    let lastDay = -1;
-    for (let i = startIndex; i < startIndex + 48; i++) {
-        if (!h.time[i]) break;
-        const d = new Date(h.time[i]);
-        if (d.getDate() !== lastDay) {
-            if (i !== startIndex) html += `<div class="day-divider">${d.toLocaleDateString('es-ES',{weekday:'long', day:'numeric'}).toUpperCase()}</div>`;
-            lastDay = d.getDate();
         }
-        html += createCard(`${d.getHours()}:00`, h.weather_code[i], Math.round(h.temperature_2m[i]), Math.round(h.apparent_temperature[i]), h.precipitation_probability[i], h.precipitation[i], Math.round(h.wind_speed_10m[i]), Math.round(h.wind_gusts_10m[i]));
-    }
-    list.innerHTML = html;
-}
 
-function render15d(d) {
-    const list = document.getElementById('section-15d');
-    let html = '';
-    for (let i = 0; i < 15; i++) {
-        const date = new Date(d.time[i]);
-        const dayLabel = date.toLocaleDateString('es-ES',{weekday:'short'}).toUpperCase().replace('.','');
-        const dayNum = date.getDate();
-        html += createCard(`${dayLabel} ${dayNum}`, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
-    }
-    list.innerHTML = html;
-}
+        function render48h(h) {
+            const list = document.getElementById('section-48h');
+            let html = '';
+            const now = new Date();
+            const currentHour = now.getHours();
+            const today = now.getDate();
+            let startIndex = h.time.findIndex(t => {
+                const d = new Date(t);
+                return d.getDate() === today && d.getHours() === currentHour;
+            });
+            if (startIndex === -1) startIndex = 0;
+            let lastDay = -1;
+            for (let i = startIndex; i < startIndex + 48; i++) {
+                if (!h.time[i]) break;
+                const d = new Date(h.time[i]);
+                if (d.getDate() !== lastDay) {
+                    if (i !== startIndex) html += `<div class="day-divider">${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' }).toUpperCase()}</div>`;
+                    lastDay = d.getDate();
+                }
+                html += createCard(`${d.getHours()}:00`, h.weather_code[i], Math.round(h.temperature_2m[i]), Math.round(h.apparent_temperature[i]), h.precipitation_probability[i], h.precipitation[i], Math.round(h.wind_speed_10m[i]), Math.round(h.wind_gusts_10m[i]));
+            }
+            list.innerHTML = html;
+        }
 
-function openDetail(i) {
-    const d = dailyData;
-    const dateStr = new Date(d.time[i]).toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'}).toUpperCase();
-    
-    document.getElementById('modal-date').innerText = dateStr;
-    document.getElementById('modal-body').innerHTML = `
+        function render15d(d) {
+            const list = document.getElementById('section-15d');
+            let html = '';
+            for (let i = 0; i < 15; i++) {
+                const date = new Date(d.time[i]);
+                const dayLabel = date.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', '');
+                const dayNum = date.getDate();
+                html += createCard(`${dayLabel} ${dayNum}`, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
+            }
+            list.innerHTML = html;
+        }
+
+        /**
+         * Función de ayuda para transformar los datos de AEMET al formato que espera `render15d`.
+         * Es una adaptación y puede que no todos los campos coincidan perfectamente.
+         */
+        function adaptarDatosAemet(diasAemet) {
+            const daily = {
+                time: [], weather_code: [], temperature_2m_max: [], temperature_2m_min: [],
+                precipitation_probability_max: [], precipitation_sum: [], wind_speed_10m_max: [],
+                wind_gusts_10m_max: [], apparent_temperature_max: [], uv_index_max: [],
+                sunrise: [], sunset: []
+            };
+
+            diasAemet.forEach(dia => {
+                daily.time.push(dia.fecha);
+                daily.temperature_2m_max.push(dia.temperatura.maxima);
+                daily.temperature_2m_min.push(dia.temperatura.minima);
+                daily.precipitation_probability_max.push(Math.max(...dia.probPrecipitacion.map(p => p.value)));
+                daily.wind_speed_10m_max.push(dia.viento.length > 0 ? Math.max(...dia.viento.map(p => p.velocidad)) : 0);
+                daily.wind_gusts_10m_max.push(dia.rachaMax.length > 0 ? Math.max(...dia.rachaMax.map(p => p.value)) : 0);
+                // Rellenamos el resto de campos para el modal
+                daily.apparent_temperature_max.push(dia.sensTermica?.maxima || dia.temperatura.maxima);
+                daily.uv_index_max.push(dia.uvMax?.value || 0);
+                daily.precipitation_sum.push(0);
+                daily.sunrise.push(dia.orto || "00:00");
+                daily.sunset.push(dia.ocaso || "00:00");
+            });
+
+            while (daily.time.length < 15) {
+                daily.time.push(new Date().toISOString());
+            }
+            return daily;
+        }
+
+        /**
+         * Función de ayuda para transformar los datos HORARIOS de AEMET al formato que espera `render48h`.
+         */
+        function adaptarDatosAemetHoraria(diasAemet) {
+            const datosAdaptados = {
+                time: [], weather_code: [], temperature_2m: [], apparent_temperature: [],
+                precipitation_probability: [], precipitation: [], wind_speed_10m: [], wind_gusts_10m: []
+            };
+
+            // Mapeo simple de estado de cielo de AEMET a códigos WMO que usamos
+            const aemetToWmo = {
+                "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, // Despejado, nubes
+                "43": 51, "44": 51, "45": 61, "46": 61, // Lluvia
+                "23": 51, "24": 61, "25": 61, "26": 61, // Lluvia escasa
+                "81": 45, "82": 45, // Niebla
+                "51": 95, "52": 95, "53": 95, "54": 95, // Tormenta
+                "61": 95, "62": 95, "63": 95, "64": 95, // Tormenta y lluvia
+            };
+
+            let currentDate = new Date();
+            currentDate.setMinutes(0, 0, 0);
+
+            diasAemet.forEach(dia => {
+                const fechaBase = dia.fecha.substring(0, 10);
+
+                // AEMET no siempre da todas las horas, así que iteramos de 0 a 23
+                for (let h = 0; h < 24; h++) {
+                    const horaStr = h.toString().padStart(2, '0');
+                    const fullDate = `${fechaBase}T${horaStr}:00:00`;
+
+                    // Solo añadimos horas futuras
+                    if (new Date(fullDate) < currentDate) continue;
+
+                    const temp = dia.temperatura.find(t => t.periodo == horaStr)?.value || 0;
+                    const sensTerm = dia.sensTermica?.find(t => t.periodo == horaStr)?.value || temp; // Usar temp si no hay sens.
+                    const probPrecip = dia.precipitacion.find(p => p.periodo == horaStr)?.value || 0;
+                    const estadoCielo = (dia.estadoCielo?.find(e => e.periodo == horaStr)?.value || "11").replace('n', '');
+                    const vientoData = dia.vientoAndRachaMax?.find(v => v.periodo == horaStr);
+                    const viento = vientoData?.velocidad[0] || 0;
+                    const racha = vientoData?.velocidad[1] || viento;
+
+                    datosAdaptados.time.push(fullDate);
+                    datosAdaptados.temperature_2m.push(parseInt(temp));
+                    datosAdaptados.apparent_temperature.push(parseInt(sensTerm));
+                    datosAdaptados.precipitation_probability.push(parseInt(probPrecip));
+                    datosAdaptados.precipitation.push(probPrecip > 0 ? 0.1 : 0); // AEMET no da cantidad horaria, simulamos
+                    datosAdaptados.weather_code.push(aemetToWmo[estadoCielo] || 1);
+                    datosAdaptados.wind_speed_10m.push(parseInt(viento));
+                    datosAdaptados.wind_gusts_10m.push(parseInt(racha));
+                }
+            });
+
+            return datosAdaptados;
+        }
+
+        function openDetail(i) {
+            const d = dailyData;
+            const dateStr = new Date(d.time[i]).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+
+            document.getElementById('modal-date').innerText = dateStr;
+            document.getElementById('modal-body').innerHTML = `
         <div class="detail-item"><span>🌡️ TEMP MÁX</span><div class="num-heavy">${Math.round(d.temperature_2m_max[i])}<span class="unit">°C</span></div></div>
         <div class="detail-item"><span>❄️ TEMP MÍN</span><div class="num-heavy">${Math.round(d.temperature_2m_min[i])}<span class="unit">°C</span></div></div>
         <div class="detail-item"><span>🔥 SENSACIÓN</span><div class="num-heavy">${Math.round(d.apparent_temperature_max[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i]>6?'var(--danger)':'#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
-        <div class="detail-item"><span>💨 RACHA MÁX</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
+        <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i] > 6 ? 'var(--danger)' : '#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
+        <div class="detail-item"><span>💨 VIENTO/RACHA</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
         <div class="detail-item"><span>🌧️ LLUVIA TOTAL</span><div class="num-heavy">${d.precipitation_sum[i]}<span class="unit">mm</span></div></div>
         <div class="detail-item"><span>💧 PROB. LLUVIA</span><div class="num-heavy">${d.precipitation_probability_max[i]}<span class="unit">%</span></div></div>
-        <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].split('T')[1]}</div></div>
-        <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].split('T')[1]}</div></div>
+        <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].replace('T', '')}</div></div>
+        <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].replace('T', '')}</div></div>
     `;
-    document.getElementById('detail-modal').style.display = 'block';
-}
+            document.getElementById('detail-modal').style.display = 'block';
+        }
 
-function showSection(s) {
-    document.getElementById('section-48h').style.display = s==='48h'?'block':'none';
-    document.getElementById('section-15d').style.display = s==='15d'?'block':'none';
-    document.getElementById('btn-48h').className = `nav-btn ${s==='48h'?'active':''}`;
-    document.getElementById('btn-15d').className = `nav-btn ${s==='15d'?'active':''}`;
-    document.getElementById('main-title').innerText = s==='48h'?'Próximas 48 Horas':'Previsión 15 Días';
-}
-</script>
+        function showSection(s) {
+            document.getElementById('section-48h').style.display = s === '48h' ? 'block' : 'none';
+            document.getElementById('section-15d').style.display = s === '15d' ? 'block' : 'none';
+            document.getElementById('btn-48h').className = `nav-btn ${s === '48h' ? 'active' : ''}`;
+            document.getElementById('btn-15d').className = `nav-btn ${s === '15d' ? 'active' : ''}`;
+            // El título principal ahora se actualiza con el nombre del municipio
+        }
+    </script>
 </body>
+
 </html>
