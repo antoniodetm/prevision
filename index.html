@@ -336,7 +336,9 @@
         async function init() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
+                    // Éxito: usamos la ubicación real y cargamos el tiempo
                     (pos) => { LAT = pos.coords.latitude; LON = pos.coords.longitude; updateLinks(); fetchWeather(); },
+                    // Error: usamos la ubicación guardada o la por defecto y cargamos el tiempo
                     () => {
                         const savedLat = localStorage.getItem('lat');
                         const savedLon = localStorage.getItem('lon');
@@ -352,10 +354,8 @@
         }
 
         async function getMunicipiosList() {
-            // Si ya tenemos la lista en caché, la devolvemos directamente.
             if (municipiosCache) return municipiosCache;
 
-            // Si no, la pedimos a AEMET y la guardamos en caché.
             console.log("Descargando lista de municipios de AEMET por primera vez...");
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
             const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
@@ -393,8 +393,7 @@
                 const found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
 
                 if (found) {
-                    // El ID de municipio en AEMET se compone de IDPROV + MUNICIPIO
-                    const idMunicipio = found.id.substring(2);
+                    const idMunicipio = found.id.slice(-5);
                     fetchWeather(idMunicipio);
                 } else {
                     alert("No se encontró el municipio. Prueba a escribir el nombre completo sin abreviaturas.");
@@ -410,22 +409,14 @@
         async function fetchWeather(idMunicipio = '28079') { // Por defecto Madrid si no se especifica
             document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO DATOS...</div>';
             document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO DATOS...</div>';
-
             const API_KEY_AEMET = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
 
-            if (API_KEY_AEMET === 'TU_API_KEY_AEMET') {
-                alert('Por favor, añade tu API Key de AEMET en el código para que funcione.');
-                return;
-            }
-
             try {
-                // La predicción horaria de AEMET a veces falla. Es más robusto obtenerla de la predicción diaria, que sí la incluye.
                 const [dailyResult, hourlyResult] = await Promise.all([
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/diaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`),
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`)
                 ]);
 
-                // Procesar datos diarios
                 if (dailyResult) {
                     console.log(`Datos diarios de ${dailyResult[0].nombre} recibidos de AEMET:`, dailyResult);
                     document.getElementById('main-title').innerText = dailyResult[0].nombre.toUpperCase();
@@ -436,7 +427,6 @@
                     document.getElementById('section-15d').innerHTML = '<div class="day-divider">Error al cargar predicción diaria.</div>';
                 }
 
-                // Procesar datos horarios
                 if (hourlyResult) {
                     console.log(`Datos horarios de ${hourlyResult[0].nombre} recibidos de AEMET:`, hourlyResult);
                     const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
@@ -531,7 +521,6 @@
 
         /**
          * Función de ayuda para transformar los datos de AEMET al formato que espera `render15d`.
-         * Es una adaptación y puede que no todos los campos coincidan perfectamente.
          */
         function adaptarDatosAemet(diasAemet) {
             const daily = {
@@ -548,7 +537,6 @@
                 daily.precipitation_probability_max.push(Math.max(...dia.probPrecipitacion.map(p => p.value)));
                 daily.wind_speed_10m_max.push(dia.viento.length > 0 ? Math.max(...dia.viento.map(p => p.velocidad)) : 0);
                 daily.wind_gusts_10m_max.push(dia.rachaMax.length > 0 ? Math.max(...dia.rachaMax.map(p => p.value)) : 0);
-                // Rellenamos el resto de campos para el modal
                 daily.apparent_temperature_max.push(dia.sensTermica?.maxima || dia.temperatura.maxima);
                 daily.uv_index_max.push(dia.uvMax?.value || 0);
                 daily.precipitation_sum.push(0);
@@ -556,6 +544,7 @@
                 daily.sunset.push(dia.ocaso || "00:00");
             });
 
+            // Rellenamos hasta 15 días si AEMET da menos
             while (daily.time.length < 15) {
                 daily.time.push(new Date().toISOString());
             }
@@ -570,33 +559,19 @@
                 time: [], weather_code: [], temperature_2m: [], apparent_temperature: [],
                 precipitation_probability: [], precipitation: [], wind_speed_10m: [], wind_gusts_10m: []
             };
-
-            // Mapeo simple de estado de cielo de AEMET a códigos WMO que usamos
-            const aemetToWmo = {
-                "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, // Despejado, nubes
-                "43": 51, "44": 51, "45": 61, "46": 61, // Lluvia
-                "23": 51, "24": 61, "25": 61, "26": 61, // Lluvia escasa
-                "81": 45, "82": 45, // Niebla
-                "51": 95, "52": 95, "53": 95, "54": 95, // Tormenta
-                "61": 95, "62": 95, "63": 95, "64": 95, // Tormenta y lluvia
-            };
-
+            const aemetToWmo = { "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, "43": 51, "44": 51, "45": 61, "46": 61, "23": 51, "24": 61, "25": 61, "26": 61, "81": 45, "82": 45, "51": 95, "52": 95, "53": 95, "54": 95, "61": 95, "62": 95, "63": 95, "64": 95 };
             let currentDate = new Date();
             currentDate.setMinutes(0, 0, 0);
 
             diasAemet.forEach(dia => {
                 const fechaBase = dia.fecha.substring(0, 10);
-
-                // AEMET no siempre da todas las horas, así que iteramos de 0 a 23
                 for (let h = 0; h < 24; h++) {
                     const horaStr = h.toString().padStart(2, '0');
                     const fullDate = `${fechaBase}T${horaStr}:00:00`;
-
-                    // Solo añadimos horas futuras
                     if (new Date(fullDate) < currentDate) continue;
 
                     const temp = dia.temperatura.find(t => t.periodo == horaStr)?.value || 0;
-                    const sensTerm = dia.sensTermica?.find(t => t.periodo == horaStr)?.value || temp; // Usar temp si no hay sens.
+                    const sensTerm = dia.sensTermica?.find(t => t.periodo == horaStr)?.value || temp;
                     const probPrecip = dia.precipitacion.find(p => p.periodo == horaStr)?.value || 0;
                     const estadoCielo = (dia.estadoCielo?.find(e => e.periodo == horaStr)?.value || "11").replace('n', '');
                     const vientoData = dia.vientoAndRachaMax?.find(v => v.periodo == horaStr);
@@ -607,13 +582,12 @@
                     datosAdaptados.temperature_2m.push(parseInt(temp));
                     datosAdaptados.apparent_temperature.push(parseInt(sensTerm));
                     datosAdaptados.precipitation_probability.push(parseInt(probPrecip));
-                    datosAdaptados.precipitation.push(probPrecip > 0 ? 0.1 : 0); // AEMET no da cantidad horaria, simulamos
+                    datosAdaptados.precipitation.push(probPrecip > 0 ? 0.1 : 0);
                     datosAdaptados.weather_code.push(aemetToWmo[estadoCielo] || 1);
                     datosAdaptados.wind_speed_10m.push(parseInt(viento));
                     datosAdaptados.wind_gusts_10m.push(parseInt(racha));
                 }
             });
-
             return datosAdaptados;
         }
 
@@ -635,7 +609,6 @@
     `;
             document.getElementById('detail-modal').style.display = 'block';
         }
-
         function showSection(s) {
             document.getElementById('section-48h').style.display = s === '48h' ? 'block' : 'none';
             document.getElementById('section-15d').style.display = s === '15d' ? 'block' : 'none';
