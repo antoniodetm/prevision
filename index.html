@@ -585,9 +585,11 @@
                         return await resDatos.json();
                     } catch (e) {
                         logStatus("Bypass CORS...");
-                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
+                        // Usamos /get en lugar de /raw para mayor robustez en el parseo
+                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlDatos)}`;
                         const resProxy = await fetchWithTimeout(proxyUrl, { timeout: 10000 });
-                        return await resProxy.json();
+                        const dataProxy = await resProxy.json();
+                        return JSON.parse(dataProxy.contents);
                     }
                 }
                 return null;
@@ -656,25 +658,29 @@
         }
 
         function adaptarDatosAemetHoraria(diasAemet) {
+            if (!diasAemet || !Array.isArray(diasAemet)) return { time: [] };
             const res = { time: [], weather_code: [], temperature_2m: [], apparent_temperature: [], precipitation_probability: [], precipitation: [], wind_speed_10m: [], wind_gusts_10m: [] };
             const map = { "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, "43": 51, "44": 51, "45": 61, "46": 61, "23": 51, "24": 61, "25": 61, "26": 61, "81": 45, "82": 45, "51": 95, "52": 95, "53": 95, "54": 95, "61": 95, "62": 95, "63": 95, "64": 95 };
             const now = new Date(); now.setMinutes(0, 0, 0);
-            diasAemet.forEach(dia => {
-                const base = dia.fecha.substring(0, 10);
-                for (let h = 0; h < 24; h++) {
-                    const p = h.toString().padStart(2, '0'); const f = `${base}T${p}:00:00`;
-                    if (new Date(f) < now) continue;
-                    const get = (arr, k) => { const x = arr?.find(i => i.periodo == p); if (!x) return 0; const v = x[k] !== undefined ? x[k] : x.value; return Array.isArray(v) ? v[0] : v; };
-                    res.time.push(f);
-                    res.temperature_2m.push(parseFloat(get(dia.temperatura)) || 0);
-                    res.apparent_temperature.push(parseFloat(get(dia.sensTermica)) || 0);
-                    res.precipitation_probability.push(parseInt(get(dia.probPrecipitacion)) || 0);
-                    res.precipitation.push(parseFloat(get(dia.precipitacion)) || 0);
-                    res.weather_code.push(map[String(get(dia.estadoCielo)).replace('n', '')] || 1);
-                    res.wind_speed_10m.push(parseInt(get(dia.viento, 'velocidad')) || 0);
-                    res.wind_gusts_10m.push(parseInt(get(dia.rachaMax)) || 0);
-                }
-            });
+            try {
+                diasAemet.forEach(dia => {
+                    if (!dia.fecha) return;
+                    const base = dia.fecha.substring(0, 10);
+                    for (let h = 0; h < 24; h++) {
+                        const p = h.toString().padStart(2, '0'); const f = `${base}T${p}:00:00`;
+                        if (new Date(f) < now) continue;
+                        const get = (arr, k) => { const x = arr?.find(i => i.periodo == p); if (!x) return 0; const v = x[k] !== undefined ? x[k] : x.value; return Array.isArray(v) ? v[0] : v; };
+                        res.time.push(f);
+                        res.temperature_2m.push(parseFloat(get(dia.temperatura)) || 0);
+                        res.apparent_temperature.push(parseFloat(get(dia.sensTermica)) || 0);
+                        res.precipitation_probability.push(parseInt(get(dia.probPrecipitacion)) || 0);
+                        res.precipitation.push(parseFloat(get(dia.precipitacion)) || 0);
+                        res.weather_code.push(map[String(get(dia.estadoCielo)).replace('n', '')] || 1);
+                        res.wind_speed_10m.push(parseInt(get(dia.viento, 'velocidad')) || 0);
+                        res.wind_gusts_10m.push(parseInt(get(dia.rachaMax)) || 0);
+                    }
+                });
+            } catch (e) { console.error("Error en horaria:", e); }
             return res;
         }
 
