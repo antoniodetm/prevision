@@ -315,6 +315,9 @@
                 <a id="accu-now-link" href="#" target="_blank" class="accu-header-btn">ACCU NOW</a>
             </div>
             <span id="main-title">Próximas 48 Horas</span>
+            <div id="status-log"
+                style="font-size: 0.5rem; color: #aaa; position: absolute; top: 38px; left: 50%; transform: translateX(-50%); white-space: nowrap;">
+            </div>
             <div style="width:40px"></div>
         </div>
 
@@ -333,7 +336,16 @@
         let municipiosCache = null;
         const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
 
+        function logStatus(msg, isError = false) {
+            const el = document.getElementById('status-log');
+            if (el) {
+                el.innerText = msg.toUpperCase();
+                el.style.color = isError ? 'var(--danger)' : '#aaa';
+            }
+        }
+
         async function init() {
+            logStatus("Iniciando...");
             // 1. Carga inmediata para evitar pantalla en blanco en el móvil
             let lastId = '28079';
             let lastName = 'MADRID';
@@ -347,22 +359,31 @@
 
             // 2. Intento de geolocalización en segundo plano
             if ("geolocation" in navigator) {
+                logStatus("Obteniendo ubicación...");
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         try {
                             LAT = pos.coords.latitude;
                             LON = pos.coords.longitude;
+                            logStatus(`Localizado: ${LAT.toFixed(2)}, ${LON.toFixed(2)}`);
                             localStorage.setItem('lat', LAT);
                             localStorage.setItem('lon', LON);
                             updateLinks();
 
+                            logStatus("Buscando municipio por coordenadas...");
                             const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
                             if (idMunicipio && idMunicipio !== lastId) {
+                                logStatus(`Nuevo municipio: ${idMunicipio}`);
                                 fetchWeather(idMunicipio);
+                            } else {
+                                logStatus("Ubicación actualizada");
                             }
-                        } catch (e) { }
+                        } catch (e) {
+                            logStatus("Error al procesar ubicación", true);
+                        }
                     },
                     (err) => {
+                        logStatus("Geolocalización rechazada/falla");
                         console.log("Geolocalización no disponible o rechazada.");
                     },
                     { timeout: 10000, enableHighAccuracy: false }
@@ -460,31 +481,39 @@
         }
 
         async function fetchWeather(idMunicipio = '28079') {
+            logStatus("Cargando previsión...");
             localStorage.setItem('last_id', idMunicipio);
             document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             const API_KEY_AEMET = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
             try {
+                logStatus("Consultando AEMET...");
                 const [dailyResult, hourlyResult] = await Promise.all([
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/diaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`),
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`)
                 ]);
                 if (dailyResult && dailyResult[0]) {
+                    logStatus("Datos diarios OK");
                     const nombre = dailyResult[0].nombre;
                     document.getElementById('main-title').innerText = nombre.toUpperCase();
                     localStorage.setItem('last_nombre', nombre);
                     dailyData = adaptarDatosAemet(dailyResult[0].prediccion.dia);
                     render15d(dailyData);
                 } else {
+                    logStatus("Error diarios", true);
                     document.getElementById('section-15d').innerHTML = '<div class="day-divider">ERROR AL OBTENER DATOS DIARIOS</div>';
                 }
                 if (hourlyResult && hourlyResult[0] && hourlyResult[0].prediccion) {
+                    logStatus("Previsión lista");
                     const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
                     render48h(hourlyAdaptedData);
+                    setTimeout(() => logStatus(""), 3000);
                 } else {
+                    logStatus("Error horaria", true);
                     document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN HORARIA NO DISPONIBLE O BLOQUEADA (CORS)</div>';
                 }
             } catch (error) {
+                logStatus("Error de red", true);
                 console.error("Error en fetchWeather:", error);
                 document.getElementById('section-48h').innerHTML = '<div class="day-divider">ERROR DE CONEXIÓN O CONFIGURACIÓN</div>';
             }
@@ -496,29 +525,23 @@
                 const dataInicial = await resInicial.json();
                 if (dataInicial.estado === 200) {
                     let urlDatos = dataInicial.datos;
-                    // Forzar HTTPS para evitar bloqueos de contenido mixto (Mixed Content) en móviles
                     if (urlDatos.startsWith('http:')) {
                         urlDatos = urlDatos.replace('http:', 'https:');
                     }
 
-                    // En navegadores, la segunda petición a AEMET suele fallar por CORS.
-                    // Intentamos petición directa, y si falla, usamos un proxy.
                     try {
                         const resDatos = await fetch(urlDatos);
-                        if (!resDatos.ok) throw new Error("CORS o error de red");
+                        if (!resDatos.ok) throw new Error("CORS");
                         return await resDatos.json();
                     } catch (e) {
-                        console.log("Usando proxy para saltar bloqueo CORS...");
+                        logStatus("Bypass CORS...");
                         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
                         const resProxy = await fetch(proxyUrl);
                         return await resProxy.json();
                     }
-                } else {
-                    console.error("Error API AEMET:", dataInicial.descripcion);
                 }
                 return null;
             } catch (e) {
-                console.error("Fallo en la petición a AEMET:", e);
                 return null;
             }
         }
