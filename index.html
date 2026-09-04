@@ -407,17 +407,24 @@
                 const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.state;
                 if (!cityName) return null;
 
-                logStatus(`Cargando Municipios...`);
+                logStatus(`Sincronizando Municipios...`);
                 const municipios = await getMunicipiosList();
-                if (!municipios) return null;
+                if (!municipios || municipios.length === 0) {
+                    logStatus("Error: No hay lista municipios", true);
+                    return null;
+                }
 
-                logStatus(`Filtrando...`);
+                logStatus(`Localizando ${cityName.substring(0, 10)}...`);
                 const normalizedSearch = cityName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedSearch);
                 if (!found) found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedSearch));
 
+                if (found) logStatus("Municipio OK");
                 return found ? found.id.slice(-5) : null;
-            } catch (e) { return null; }
+            } catch (e) {
+                logStatus("Error geoloc", true);
+                return null;
+            }
         }
 
         function updateLinks() {
@@ -425,23 +432,33 @@
         }
 
         async function getMunicipiosList() {
-            if (municipiosCache) return municipiosCache;
+            if (municipiosCache && municipiosCache.length > 0) return municipiosCache;
             try {
                 const cached = localStorage.getItem('municipios_cache');
-                if (cached) return JSON.parse(cached);
+                if (cached) {
+                    municipiosCache = JSON.parse(cached);
+                    if (municipiosCache.length > 0) return municipiosCache;
+                }
             } catch (e) { }
 
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
             const url = `https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`;
             try {
-                logStatus("AEMET: Conectando...");
-                const dataMaestra = await fetchAemetData(url);
-                if (!dataMaestra) return [];
+                logStatus("Descargando municipios...");
+                const rawData = await fetchAemetData(url, true); // true = es lista municipios
+                if (!rawData || !Array.isArray(rawData)) return [];
 
-                municipiosCache = dataMaestra;
-                try { localStorage.setItem('municipios_cache', JSON.stringify(dataMaestra)); } catch (e) { }
+                // Optimizar para iPhone: solo guardar ID y Nombre para ahorrar memoria
+                municipiosCache = rawData.map(m => ({ id: m.id, nombre: m.nombre }));
+                try {
+                    localStorage.setItem('municipios_cache', JSON.stringify(municipiosCache));
+                } catch (e) { console.log("Cache full"); }
+
                 return municipiosCache;
-            } catch (e) { return []; }
+            } catch (e) {
+                logStatus("Error municipios", true);
+                return [];
+            }
         }
 
         async function searchCity() {
@@ -451,15 +468,19 @@
             try {
                 const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                 const municipios = await getMunicipiosList();
+                if (!municipios || municipios.length === 0) {
+                    alert("No se pudo cargar la lista de municipios.");
+                    return;
+                }
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
                 if (!found) found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedCity));
                 if (found) fetchWeather(found.id.slice(-5));
-                else alert("No encontrado.");
+                else alert("Ciudad no encontrada en la lista de AEMET.");
             } catch (e) { logStatus("Error búsqueda", true); }
         }
 
         async function fetchWeather(idMunicipio = '28079') {
-            logStatus("Descargando...");
+            logStatus("Conectando...");
             localStorage.setItem('last_id', idMunicipio);
             document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO...</div>';
@@ -483,17 +504,16 @@
                 if (hourlyResult && hourlyResult[0] && hourlyResult[0].prediccion) {
                     const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
                     render48h(hourlyAdaptedData);
-                    logStatus("Listo");
+                    logStatus("Previsión lista");
                     setTimeout(() => logStatus(""), 3000);
                 } else {
-                    // FALLBACK A OPEN-METEO EN IPHONE SI AEMET FALLA
-                    logStatus("AEMET Falló. Fallback...");
+                    logStatus("AEMET falló. Fallback...");
                     const omData = await fetchOpenMeteo(LAT, LON);
                     if (omData) {
                         render48h(omData);
                         logStatus("Listo (Open-Meteo)");
                     } else {
-                        logStatus("Error horaria", true);
+                        logStatus("Error previsión", true);
                         document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN NO DISPONIBLE</div>';
                     }
                 }
@@ -502,28 +522,27 @@
             }
         }
 
-        async function fetchAemetData(urlPeticion) {
+        async function fetchAemetData(urlPeticion, isMunicipios = false) {
             try {
                 const resInicial = await fetchWithTimeout(urlPeticion, { timeout: 5000 });
                 const dataInicial = await resInicial.json();
                 if (dataInicial.estado === 200) {
                     let urlDatos = dataInicial.datos.replace('http:', 'https:');
 
-                    // Estrategia de reintentos con múltiples proxies para iPhone
                     const proxies = [
-                        u => u, // Directo primero
+                        u => u,
                         u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
                         u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`
                     ];
 
                     for (const getUrl of proxies) {
                         try {
-                            const res = await fetchWithTimeout(getUrl(urlDatos), { timeout: 6000 });
+                            const res = await fetchWithTimeout(getUrl(urlDatos), { timeout: 8000 });
                             if (res.ok) {
-                                // Especial para lista de municipios (windows-1252)
-                                if (urlPeticion.includes('municipios')) {
+                                if (isMunicipios) {
                                     const buffer = await res.arrayBuffer();
-                                    return JSON.parse(new TextDecoder('windows-1252').decode(buffer));
+                                    const decoder = new TextDecoder('windows-1252');
+                                    return JSON.parse(decoder.decode(buffer));
                                 }
                                 return await res.json();
                             }
@@ -539,18 +558,7 @@
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m&forecast_days=3&timezone=auto`;
                 const res = await fetch(url);
                 const data = await res.json();
-                const h = data.hourly;
-                // Normalizar formato para que render48h lo entienda
-                return {
-                    time: h.time,
-                    weather_code: h.weather_code,
-                    temperature_2m: h.temperature_2m,
-                    apparent_temperature: h.apparent_temperature,
-                    precipitation_probability: h.precipitation_probability,
-                    precipitation: h.precipitation,
-                    wind_speed_10m: h.wind_speed_10m,
-                    wind_gusts_10m: h.wind_gusts_10m
-                };
+                return data.hourly;
             } catch (e) { return null; }
         }
 
@@ -571,9 +579,9 @@
         }
 
         function render48h(h) {
+            if (!h || !h.time) return;
             const list = document.getElementById('section-48h');
             let html = ''; const now = new Date(); const today = now.getDate();
-            // Buscar hora actual en los datos
             let startIndex = h.time.findIndex(t => {
                 const d = new Date(t);
                 return d > now || (d.getDate() === today && d.getHours() === now.getHours());
@@ -594,6 +602,7 @@
         }
 
         function render15d(d) {
+            if (!d || !d.time) return;
             const list = document.getElementById('section-15d');
             let html = '';
             for (let i = 0; i < 15; i++) {
@@ -624,6 +633,7 @@
             const map = { "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, "43": 51, "44": 51, "45": 61, "46": 61, "23": 51, "24": 61, "25": 61, "26": 61, "81": 45, "82": 45, "51": 95, "52": 95, "53": 95, "54": 95, "61": 95, "62": 95, "63": 95, "64": 95 };
             const now = new Date(); now.setMinutes(0, 0, 0);
             diasAemet.forEach(dia => {
+                if (!dia.fecha) return;
                 const base = dia.fecha.substring(0, 10);
                 for (let h = 0; h < 24; h++) {
                     const p = h.toString().padStart(2, '0'); const f = `${base}T${p}:00:00`;
