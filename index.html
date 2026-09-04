@@ -424,7 +424,17 @@
                 if (urlDatos.startsWith('http:')) {
                     urlDatos = urlDatos.replace('http:', 'https:');
                 }
-                const resMunicipiosList = await fetch(urlDatos);
+
+                let resMunicipiosList;
+                try {
+                    resMunicipiosList = await fetch(urlDatos);
+                    if (!resMunicipiosList.ok) throw new Error("CORS");
+                } catch (e) {
+                    console.log("Usando proxy para municipios...");
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
+                    resMunicipiosList = await fetch(proxyUrl);
+                }
+
                 const buffer = await resMunicipiosList.arrayBuffer();
                 const decoder = new TextDecoder('windows-1252');
                 const municipios = JSON.parse(decoder.decode(buffer));
@@ -490,8 +500,19 @@
                     if (urlDatos.startsWith('http:')) {
                         urlDatos = urlDatos.replace('http:', 'https:');
                     }
-                    const resDatos = await fetch(urlDatos);
-                    return await resDatos.json();
+
+                    // En navegadores, la segunda petición a AEMET suele fallar por CORS.
+                    // Intentamos petición directa, y si falla, usamos un proxy.
+                    try {
+                        const resDatos = await fetch(urlDatos);
+                        if (!resDatos.ok) throw new Error("CORS o error de red");
+                        return await resDatos.json();
+                    } catch (e) {
+                        console.log("Usando proxy para saltar bloqueo CORS...");
+                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
+                        const resProxy = await fetch(proxyUrl);
+                        return await resProxy.json();
+                    }
                 } else {
                     console.error("Error API AEMET:", dataInicial.descripcion);
                 }
