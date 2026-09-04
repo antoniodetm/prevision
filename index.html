@@ -334,6 +334,14 @@
         const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
 
         async function init() {
+            // Carga rápida del último municipio guardado para evitar esperas
+            const lastId = localStorage.getItem('last_id');
+            const lastName = localStorage.getItem('last_nombre');
+            if (lastId) {
+                if (lastName) document.getElementById('main-title').innerText = lastName.toUpperCase();
+                fetchWeather(lastId);
+            }
+
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
@@ -342,9 +350,14 @@
                         localStorage.setItem('lat', LAT);
                         localStorage.setItem('lon', LON);
                         updateLinks();
-                        console.log(`Ubicación detectada: ${LAT}, ${LON}. Buscando municipio más cercano...`);
+
+                        // Si no hay lastId, o si queremos actualizar por si se ha movido
                         const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
-                        fetchWeather(idMunicipio || '28079');
+                        if (idMunicipio && idMunicipio !== lastId) {
+                            fetchWeather(idMunicipio);
+                        } else if (!lastId) {
+                            fetchWeather('28079');
+                        }
                     },
                     async () => {
                         const savedLat = localStorage.getItem('lat');
@@ -352,114 +365,85 @@
                         if (savedLat && savedLon) {
                             LAT = savedLat; LON = savedLon;
                             const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
-                            fetchWeather(idMunicipio || '28079');
-                        } else {
+                            if (idMunicipio && idMunicipio !== lastId) fetchWeather(idMunicipio);
+                        } else if (!lastId) {
                             updateLinks(); fetchWeather();
                         }
-                    }
+                    },
+                    { timeout: 5000 } // Timeout para no bloquear si el GPS tarda
                 );
-            } else { updateLinks(); fetchWeather(); }
-        }
-
-        async function getMunicipioIdByCoords(lat, lon) {
-            try {
-                // 1. Geocodificación inversa con Nominatim (OpenStreetMap) para obtener el nombre del municipio
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
-                    headers: { 'Accept-Language': 'es' }
-                });
-                const data = await response.json();
-                const cityName = data.address.city || data.address.town || data.address.village || data.address.municipality || data.address.county;
-
-                if (!cityName) return null;
-                console.log("Ciudad detectada por geocoding:", cityName);
-
-                // 2. Buscar el ID correspondiente en la lista de municipios de AEMET
-                const municipios = await getMunicipiosList();
-                const normalizedSearch = cityName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-
-                // Intento de coincidencia exacta
-                let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedSearch);
-
-                // Si no hay coincidencia exacta, intentamos que el nombre de AEMET contenga el de Nominatim o viceversa
-                if (!found) {
-                    found = municipios.find(m => {
-                        const mName = m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-                        return mName.includes(normalizedSearch) || normalizedSearch.includes(mName);
-                    });
-                }
-
-                if (found) {
-                    const id = found.id.slice(-5);
-                    console.log(`Municipio AEMET encontrado: ${found.nombre} (${id})`);
-                    return id;
-                }
-                return null;
-            } catch (e) {
-                console.error("Error identificando municipio por coordenadas:", e);
-                return null;
-            }
-        }
-
-        function updateLinks() {
-            document.getElementById('accu-now-link').href = `https://www.accuweather.com/es/search-locations?query=${LAT},${LON}`;
+            } else if (!lastId) { updateLinks(); fetchWeather(); }
         }
 
         async function getMunicipiosList() {
             if (municipiosCache) return municipiosCache;
 
+            // Intentar cargar de caché local (Persistencia)
+            try {
+                const cached = localStorage.getItem('municipios_cache');
+                if (cached) {
+                    municipiosCache = JSON.parse(cached);
+                    console.log("Lista de municipios cargada desde caché local.");
+                    return municipiosCache;
+                }
+            } catch (e) { console.warn("Error leyendo caché local"); }
+
             console.log("Descargando lista de municipios de AEMET por primera vez...");
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
-            const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
-            const dataMunicipiosUrl = await resMunicipiosUrl.json();
+            try {
+                const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
+                const dataMunicipiosUrl = await resMunicipiosUrl.json();
 
-            if (dataMunicipiosUrl.estado !== 200) {
-                throw new Error('No se pudo obtener la lista de municipios de AEMET.');
+                if (dataMunicipiosUrl.estado !== 200) throw new Error('Error API');
+
+                const resMunicipiosList = await fetch(dataMunicipiosUrl.datos);
+                const buffer = await resMunicipiosList.arrayBuffer();
+                const decoder = new TextDecoder('windows-1252');
+                const municipios = JSON.parse(decoder.decode(buffer));
+
+                municipiosCache = municipios;
+                // Guardar en caché local para la próxima vez
+                localStorage.setItem('municipios_cache', JSON.stringify(municipios));
+                return municipiosCache;
+            } catch (e) {
+                console.error("Error obteniendo municipios:", e);
+                return [];
             }
-
-            // La respuesta de AEMET para la lista de municipios no viene en UTF-8.
-            // Necesitamos leerla como un ArrayBuffer y decodificarla usando 'windows-1252' (o 'latin1').
-            const resMunicipiosList = await fetch(dataMunicipiosUrl.datos);
-            const buffer = await resMunicipiosList.arrayBuffer();
-            const decoder = new TextDecoder('windows-1252');
-            const municipios = JSON.parse(decoder.decode(buffer));
-            municipiosCache = municipios; // Guardamos en caché para la próxima vez
-            return municipiosCache;
         }
 
         async function searchCity() {
             const city = prompt("Escribe el nombre de la ciudad:");
             if (!city) return;
 
-            document.getElementById('section-15d').innerHTML = '<div class="day-divider">BUSCANDO MUNICIPIO...</div>';
-            document.getElementById('section-48h').innerHTML = '<div class="day-divider">BUSCANDO MUNICIPIO...</div>';
+            document.getElementById('section-15d').innerHTML = '<div class="day-divider">BUSCANDO...</div>';
+            document.getElementById('section-48h').innerHTML = '<div class="day-divider">BUSCANDO...</div>';
 
             try {
-                // Normalizamos el nombre para la búsqueda (mayúsculas, sin acentos)
                 const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-
-                // 1. Obtenemos la lista de municipios (desde la caché si es posible)
                 const municipios = await getMunicipiosList();
 
-                // 2. Buscamos el municipio en la lista
-                const found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
+                // Búsqueda más flexible
+                let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
+
+                if (!found) {
+                    found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedCity));
+                }
 
                 if (found) {
-                    const idMunicipio = found.id.slice(-5);
-                    fetchWeather(idMunicipio);
+                    fetchWeather(found.id.slice(-5));
                 } else {
-                    alert("No se encontró el municipio. Prueba a escribir el nombre completo sin abreviaturas.");
-                    fetchWeather(); // Volvemos a cargar el por defecto
+                    alert("No encontrado.");
+                    fetchWeather();
                 }
             } catch (e) {
-                console.error("Error al buscar municipio:", e);
-                alert("Error al buscar el municipio.");
-                fetchWeather(); // Volvemos a cargar el por defecto
+                fetchWeather();
             }
         }
 
-        async function fetchWeather(idMunicipio = '28079') { // Por defecto Madrid si no se especifica
-            document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO DATOS...</div>';
-            document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO DATOS...</div>';
+        async function fetchWeather(idMunicipio = '28079') {
+            localStorage.setItem('last_id', idMunicipio);
+            document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO...</div>';
+            document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             const API_KEY_AEMET = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
 
             try {
@@ -469,14 +453,14 @@
                 ]);
 
                 if (dailyResult) {
-                    console.log(`Datos diarios de ${dailyResult[0].nombre} recibidos de AEMET:`, dailyResult);
-                    document.getElementById('main-title').innerText = dailyResult[0].nombre.toUpperCase();
+                    const nombre = dailyResult[0].nombre;
+                    document.getElementById('main-title').innerText = nombre.toUpperCase();
+                    localStorage.setItem('last_nombre', nombre);
                     const prediccionDiaria = dailyResult[0].prediccion.dia;
                     dailyData = adaptarDatosAemet(prediccionDiaria);
                     render15d(dailyData);
-                } else {
-                    document.getElementById('section-15d').innerHTML = '<div class="day-divider">Error al cargar predicción diaria.</div>';
                 }
+                // ... rest of fetchWeather ...
 
                 if (hourlyResult) {
                     console.log(`Datos horarios de ${hourlyResult[0].nombre} recibidos de AEMET:`, hourlyResult);
