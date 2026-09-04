@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PREVISIÓN BICI PRO</title>
     <style>
         :root {
@@ -372,11 +372,15 @@
 
         async function getMunicipioIdByCoords(lat, lon) {
             try {
-                // Nominatim a veces bloquea peticiones sin identificar. Añadimos un zoom y lenguaje específico.
+                // Nominatim requiere User-Agent y a veces bloquea peticiones sin identificar.
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
-                    headers: { 'Accept-Language': 'es' }
+                    headers: {
+                        'Accept-Language': 'es',
+                        'User-Agent': 'PrevisionBiciApp/1.0 (antoniodetm@gmail.com)'
+                    }
                 });
                 const data = await response.json();
+                if (!data || !data.address) return null;
                 const addr = data.address;
                 const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.state;
 
@@ -416,7 +420,11 @@
             try {
                 const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
                 const dataMunicipiosUrl = await resMunicipiosUrl.json();
-                const resMunicipiosList = await fetch(dataMunicipiosUrl.datos);
+                let urlDatos = dataMunicipiosUrl.datos;
+                if (urlDatos.startsWith('http:')) {
+                    urlDatos = urlDatos.replace('http:', 'https:');
+                }
+                const resMunicipiosList = await fetch(urlDatos);
                 const buffer = await resMunicipiosList.arrayBuffer();
                 const decoder = new TextDecoder('windows-1252');
                 const municipios = JSON.parse(decoder.decode(buffer));
@@ -457,15 +465,18 @@
                     localStorage.setItem('last_nombre', nombre);
                     dailyData = adaptarDatosAemet(dailyResult[0].prediccion.dia);
                     render15d(dailyData);
+                } else {
+                    document.getElementById('section-15d').innerHTML = '<div class="day-divider">ERROR AL OBTENER DATOS DIARIOS</div>';
                 }
                 if (hourlyResult && hourlyResult[0] && hourlyResult[0].prediccion) {
                     const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
                     render48h(hourlyAdaptedData);
                 } else {
-                    document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN HORARIA NO DISPONIBLE</div>';
+                    document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN HORARIA NO DISPONIBLE O BLOQUEADA (CORS)</div>';
                 }
             } catch (error) {
-                document.getElementById('section-48h').innerHTML = '<div class="day-divider">ERROR DE CONEXIÓN</div>';
+                console.error("Error en fetchWeather:", error);
+                document.getElementById('section-48h').innerHTML = '<div class="day-divider">ERROR DE CONEXIÓN O CONFIGURACIÓN</div>';
             }
         }
 
@@ -474,11 +485,21 @@
                 const resInicial = await fetch(urlPeticion);
                 const dataInicial = await resInicial.json();
                 if (dataInicial.estado === 200) {
-                    const resDatos = await fetch(dataInicial.datos);
+                    let urlDatos = dataInicial.datos;
+                    // Forzar HTTPS para evitar bloqueos de contenido mixto (Mixed Content) en móviles
+                    if (urlDatos.startsWith('http:')) {
+                        urlDatos = urlDatos.replace('http:', 'https:');
+                    }
+                    const resDatos = await fetch(urlDatos);
                     return await resDatos.json();
+                } else {
+                    console.error("Error API AEMET:", dataInicial.descripcion);
                 }
                 return null;
-            } catch (e) { return null; }
+            } catch (e) {
+                console.error("Fallo en la petición a AEMET:", e);
+                return null;
+            }
         }
 
         function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
