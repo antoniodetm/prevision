@@ -393,7 +393,7 @@
 
         async function getMunicipioIdByCoords(lat, lon) {
             try {
-                // Nominatim requiere User-Agent y a veces bloquea peticiones sin identificar.
+                logStatus("Nominatim: Consultando...");
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
                     headers: {
                         'Accept-Language': 'es',
@@ -401,15 +401,26 @@
                     }
                 });
                 const data = await response.json();
-                if (!data || !data.address) return null;
+                if (!data || !data.address) {
+                    logStatus("Error: No dirección");
+                    return null;
+                }
                 const addr = data.address;
                 const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.state;
 
-                if (!cityName) return null;
+                if (!cityName) {
+                    logStatus("Error: No ciudad");
+                    return null;
+                }
 
+                logStatus(`Cargando Municipios...`);
                 const municipios = await getMunicipiosList();
-                if (!municipios || municipios.length === 0) return null;
+                if (!municipios || municipios.length === 0) {
+                    logStatus("Error lista municipios", true);
+                    return null;
+                }
 
+                logStatus(`Buscando ${cityName.substring(0, 10)}...`);
                 const normalizedSearch = cityName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedSearch);
@@ -419,8 +430,13 @@
                         return mName.includes(normalizedSearch) || normalizedSearch.includes(mName);
                     });
                 }
+                if (found) logStatus("Municipio OK");
+                else logStatus("Ciudad no hallada", true);
                 return found ? found.id.slice(-5) : null;
-            } catch (e) { return null; }
+            } catch (e) {
+                logStatus("Error geolocalización", true);
+                return null;
+            }
         }
 
         function updateLinks() {
@@ -437,6 +453,7 @@
                 }
             } catch (e) { }
 
+            logStatus("AEMET: Lista municipios...");
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
             try {
                 const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
@@ -451,18 +468,22 @@
                     resMunicipiosList = await fetch(urlDatos);
                     if (!resMunicipiosList.ok) throw new Error("CORS");
                 } catch (e) {
-                    console.log("Usando proxy para municipios...");
+                    logStatus("Proxy Municipios...");
                     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
                     resMunicipiosList = await fetch(proxyUrl);
                 }
 
+                logStatus("Decodificando...");
                 const buffer = await resMunicipiosList.arrayBuffer();
                 const decoder = new TextDecoder('windows-1252');
                 const municipios = JSON.parse(decoder.decode(buffer));
                 municipiosCache = municipios;
                 localStorage.setItem('municipios_cache', JSON.stringify(municipios));
                 return municipiosCache;
-            } catch (e) { return []; }
+            } catch (e) {
+                logStatus("Error descarga municipios", true);
+                return [];
+            }
         }
 
         async function searchCity() {
