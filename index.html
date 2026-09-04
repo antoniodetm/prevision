@@ -360,7 +360,6 @@
 
         async function init() {
             logStatus("Iniciando...");
-            // 1. Carga inmediata para evitar pantalla en blanco en el móvil
             let lastId = '28079';
             let lastName = 'MADRID';
             try {
@@ -371,35 +370,26 @@
             document.getElementById('main-title').innerText = lastName.toUpperCase();
             fetchWeather(lastId);
 
-            // 2. Intento de geolocalización en segundo plano
             if ("geolocation" in navigator) {
-                logStatus("Obteniendo ubicación...");
+                logStatus("Ubicación...");
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                         try {
                             LAT = pos.coords.latitude;
                             LON = pos.coords.longitude;
-                            logStatus(`Localizado: ${LAT.toFixed(2)}, ${LON.toFixed(2)}`);
                             localStorage.setItem('lat', LAT);
                             localStorage.setItem('lon', LON);
                             updateLinks();
 
-                            logStatus("Buscando municipio por coordenadas...");
                             const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
                             if (idMunicipio && idMunicipio !== lastId) {
-                                logStatus(`Nuevo municipio: ${idMunicipio}`);
                                 fetchWeather(idMunicipio);
                             } else {
-                                logStatus("Ubicación actualizada");
+                                logStatus("Ubicación lista");
                             }
-                        } catch (e) {
-                            logStatus("Error al procesar ubicación", true);
-                        }
+                        } catch (e) { logStatus("Error GPS", true); }
                     },
-                    (err) => {
-                        logStatus("Geolocalización rechazada/falla");
-                        console.log("Geolocalización no disponible o rechazada.");
-                    },
+                    (err) => { logStatus("GPS desactivado"); },
                     { timeout: 10000, enableHighAccuracy: false }
                 );
             }
@@ -407,51 +397,27 @@
 
         async function getMunicipioIdByCoords(lat, lon) {
             try {
-                logStatus("Nominatim: Consultando...");
+                logStatus("Buscando ciudad...");
                 const response = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
                     timeout: 5000,
-                    headers: {
-                        'Accept-Language': 'es',
-                        'User-Agent': 'PrevisionBiciApp/1.0 (antoniodetm@gmail.com)'
-                    }
+                    headers: { 'Accept-Language': 'es', 'User-Agent': 'PrevisionBiciApp/1.0' }
                 });
                 const data = await response.json();
-                if (!data || !data.address) {
-                    logStatus("Error: No dirección");
-                    return null;
-                }
                 const addr = data.address;
-                const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.state;
-
-                if (!cityName) {
-                    logStatus("Error: No ciudad");
-                    return null;
-                }
+                const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.state;
+                if (!cityName) return null;
 
                 logStatus(`Cargando Municipios...`);
                 const municipios = await getMunicipiosList();
-                if (!municipios || municipios.length === 0) {
-                    logStatus("Error lista municipios", true);
-                    return null;
-                }
+                if (!municipios) return null;
 
-                logStatus(`Buscando ${cityName.substring(0, 10)}...`);
+                logStatus(`Filtrando...`);
                 const normalizedSearch = cityName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedSearch);
-                if (!found) {
-                    found = municipios.find(m => {
-                        const mName = m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-                        return mName.includes(normalizedSearch) || normalizedSearch.includes(mName);
-                    });
-                }
-                if (found) logStatus("Municipio OK");
-                else logStatus("Ciudad no hallada", true);
+                if (!found) found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedSearch));
+
                 return found ? found.id.slice(-5) : null;
-            } catch (e) {
-                logStatus("Error geolocalización", true);
-                return null;
-            }
+            } catch (e) { return null; }
         }
 
         function updateLinks() {
@@ -462,112 +428,77 @@
             if (municipiosCache) return municipiosCache;
             try {
                 const cached = localStorage.getItem('municipios_cache');
-                if (cached) {
-                    municipiosCache = JSON.parse(cached);
-                    return municipiosCache;
-                }
+                if (cached) return JSON.parse(cached);
             } catch (e) { }
 
-            logStatus("AEMET: Conectando...");
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
-            const urlMaestro = `https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`;
-
+            const url = `https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`;
             try {
-                let resMunicipiosUrl;
-                try {
-                    // Timeout de 4s para forzar el proxy rápido si AEMET no responde
-                    resMunicipiosUrl = await fetchWithTimeout(urlMaestro, { timeout: 4000 });
-                    if (!resMunicipiosUrl.ok) throw new Error();
-                } catch (e) {
-                    logStatus("Proxy municipios (1)...");
-                    resMunicipiosUrl = await fetchWithTimeout(`https://api.allorigins.win/raw?url=${encodeURIComponent(urlMaestro)}`, { timeout: 10000 });
-                }
+                logStatus("AEMET: Conectando...");
+                const dataMaestra = await fetchAemetData(url);
+                if (!dataMaestra) return [];
 
-                const dataMunicipiosUrl = await resMunicipiosUrl.json();
-                let urlDatos = dataMunicipiosUrl.datos;
-                if (urlDatos.startsWith('http:')) {
-                    urlDatos = urlDatos.replace('http:', 'https:');
-                }
-
-                let resMunicipiosList;
-                try {
-                    resMunicipiosList = await fetchWithTimeout(urlDatos, { timeout: 4000 });
-                    if (!resMunicipiosList.ok) throw new Error("CORS");
-                } catch (e) {
-                    logStatus("Proxy municipios (2)...");
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
-                    resMunicipiosList = await fetchWithTimeout(proxyUrl, { timeout: 15000 });
-                }
-
-                logStatus("Descargando base de datos...");
-                const buffer = await resMunicipiosList.arrayBuffer();
-                const decoder = new TextDecoder('windows-1252');
-                const municipios = JSON.parse(decoder.decode(buffer));
-                municipiosCache = municipios;
-                try {
-                    localStorage.setItem('municipios_cache', JSON.stringify(municipios));
-                } catch (e) { }
+                municipiosCache = dataMaestra;
+                try { localStorage.setItem('municipios_cache', JSON.stringify(dataMaestra)); } catch (e) { }
                 return municipiosCache;
-            } catch (e) {
-                logStatus("Error descarga municipios", true);
-                return [];
-            }
+            } catch (e) { return []; }
         }
 
         async function searchCity() {
             const city = prompt("Escribe el nombre de la ciudad:");
             if (!city) return;
-            document.getElementById('section-15d').innerHTML = '<div class="day-divider">BUSCANDO...</div>';
-            document.getElementById('section-48h').innerHTML = '<div class="day-divider">BUSCANDO...</div>';
+            logStatus("Buscando...");
             try {
                 const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                 const municipios = await getMunicipiosList();
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
                 if (!found) found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedCity));
                 if (found) fetchWeather(found.id.slice(-5));
-                else { alert("No encontrado."); fetchWeather(); }
-            } catch (e) { fetchWeather(); }
+                else alert("No encontrado.");
+            } catch (e) { logStatus("Error búsqueda", true); }
         }
 
         async function fetchWeather(idMunicipio = '28079') {
-            logStatus("Cargando previsión...");
+            logStatus("Descargando...");
             localStorage.setItem('last_id', idMunicipio);
             document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO...</div>';
+
             const API_KEY_AEMET = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
+
             try {
-                logStatus("Consultando AEMET...");
                 const [dailyResult, hourlyResult] = await Promise.all([
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/diaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`),
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`)
                 ]);
+
                 if (dailyResult && dailyResult[0]) {
-                    logStatus("Datos diarios OK");
                     const nombre = dailyResult[0].nombre;
                     document.getElementById('main-title').innerText = nombre.toUpperCase();
                     localStorage.setItem('last_nombre', nombre);
                     dailyData = adaptarDatosAemet(dailyResult[0].prediccion.dia);
                     render15d(dailyData);
-                } else {
-                    logStatus("Error diarios", true);
-                    document.getElementById('section-15d').innerHTML = '<div class="day-divider">ERROR AL OBTENER DATOS DIARIOS</div>';
                 }
+
                 if (hourlyResult && hourlyResult[0] && hourlyResult[0].prediccion) {
-                    logStatus("Previsión lista");
                     const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
                     render48h(hourlyAdaptedData);
+                    logStatus("Listo");
                     setTimeout(() => logStatus(""), 3000);
                 } else {
-                    let msg = "No disponible";
-                    if (!hourlyResult) msg = "Error Red/Proxy";
-                    else if (!hourlyResult[0]) msg = "AEMET: Sin datos";
-                    logStatus(`Horaria: ${msg}`, true);
-                    document.getElementById('section-48h').innerHTML = `<div class="day-divider">PREDICCIÓN HORARIA: ${msg.toUpperCase()}</div>`;
+                    // FALLBACK A OPEN-METEO EN IPHONE SI AEMET FALLA
+                    logStatus("AEMET Falló. Fallback...");
+                    const omData = await fetchOpenMeteo(LAT, LON);
+                    if (omData) {
+                        render48h(omData);
+                        logStatus("Listo (Open-Meteo)");
+                    } else {
+                        logStatus("Error horaria", true);
+                        document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN NO DISPONIBLE</div>';
+                    }
                 }
             } catch (error) {
                 logStatus("Error de red", true);
-                console.error("Error en fetchWeather:", error);
-                document.getElementById('section-48h').innerHTML = '<div class="day-divider">ERROR DE CONEXIÓN O CONFIGURACIÓN</div>';
             }
         }
 
@@ -576,29 +507,51 @@
                 const resInicial = await fetchWithTimeout(urlPeticion, { timeout: 5000 });
                 const dataInicial = await resInicial.json();
                 if (dataInicial.estado === 200) {
-                    let urlDatos = dataInicial.datos;
-                    if (urlDatos.startsWith('http:')) {
-                        urlDatos = urlDatos.replace('http:', 'https:');
-                    }
+                    let urlDatos = dataInicial.datos.replace('http:', 'https:');
 
-                    try {
-                        const resDatos = await fetchWithTimeout(urlDatos, { timeout: 5000 });
-                        if (!resDatos.ok) throw new Error("CORS");
-                        return await resDatos.json();
-                    } catch (e) {
-                        logStatus("Bypass CORS...");
-                        // Usamos corsproxy.io que es más directo para JSON
-                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(urlDatos)}`;
-                        const resProxy = await fetchWithTimeout(proxyUrl, { timeout: 10000 });
-                        return await resProxy.json();
+                    // Estrategia de reintentos con múltiples proxies para iPhone
+                    const proxies = [
+                        u => u, // Directo primero
+                        u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+                        u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`
+                    ];
+
+                    for (const getUrl of proxies) {
+                        try {
+                            const res = await fetchWithTimeout(getUrl(urlDatos), { timeout: 6000 });
+                            if (res.ok) {
+                                // Especial para lista de municipios (windows-1252)
+                                if (urlPeticion.includes('municipios')) {
+                                    const buffer = await res.arrayBuffer();
+                                    return JSON.parse(new TextDecoder('windows-1252').decode(buffer));
+                                }
+                                return await res.json();
+                            }
+                        } catch (e) { continue; }
                     }
-                } else {
-                    logStatus(`AEMET: Error ${dataInicial.estado}`, true);
                 }
                 return null;
-            } catch (e) {
-                return null;
-            }
+            } catch (e) { return null; }
+        }
+
+        async function fetchOpenMeteo(lat, lon) {
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m&forecast_days=3&timezone=auto`;
+                const res = await fetch(url);
+                const data = await res.json();
+                const h = data.hourly;
+                // Normalizar formato para que render48h lo entienda
+                return {
+                    time: h.time,
+                    weather_code: h.weather_code,
+                    temperature_2m: h.temperature_2m,
+                    apparent_temperature: h.apparent_temperature,
+                    precipitation_probability: h.precipitation_probability,
+                    precipitation: h.precipitation,
+                    wind_speed_10m: h.wind_speed_10m,
+                    wind_gusts_10m: h.wind_gusts_10m
+                };
+            } catch (e) { return null; }
         }
 
         function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
@@ -619,15 +572,20 @@
 
         function render48h(h) {
             const list = document.getElementById('section-48h');
-            let html = ''; const now = new Date(); const currentHour = now.getHours(); const today = now.getDate();
-            let startIndex = h.time.findIndex(t => { const d = new Date(t); return d.getDate() === today && d.getHours() === currentHour; });
+            let html = ''; const now = new Date(); const today = now.getDate();
+            // Buscar hora actual en los datos
+            let startIndex = h.time.findIndex(t => {
+                const d = new Date(t);
+                return d > now || (d.getDate() === today && d.getHours() === now.getHours());
+            });
             if (startIndex === -1) startIndex = 0;
+
             let lastDay = -1;
             for (let i = startIndex; i < startIndex + 48; i++) {
                 if (!h.time[i]) break;
                 const d = new Date(h.time[i]);
                 if (d.getDate() !== lastDay) {
-                    if (i !== startIndex) html += `<div class="day-divider">${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' }).toUpperCase()}</div>`;
+                    html += `<div class="day-divider">${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' }).toUpperCase()}</div>`;
                     lastDay = d.getDate();
                 }
                 html += createCard(`${d.getHours()}:00`, h.weather_code[i], Math.round(h.temperature_2m[i]), Math.round(h.apparent_temperature[i]), h.precipitation_probability[i], h.precipitation[i], Math.round(h.wind_speed_10m[i]), Math.round(h.wind_gusts_10m[i]));
@@ -639,6 +597,7 @@
             const list = document.getElementById('section-15d');
             let html = '';
             for (let i = 0; i < 15; i++) {
+                if (!d.time[i]) break;
                 const date = new Date(d.time[i]);
                 const dayLabel = date.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', '');
                 html += createCard(`${dayLabel} ${date.getDate()}`, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
@@ -661,29 +620,25 @@
         }
 
         function adaptarDatosAemetHoraria(diasAemet) {
-            if (!diasAemet || !Array.isArray(diasAemet)) return { time: [] };
             const res = { time: [], weather_code: [], temperature_2m: [], apparent_temperature: [], precipitation_probability: [], precipitation: [], wind_speed_10m: [], wind_gusts_10m: [] };
             const map = { "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, "43": 51, "44": 51, "45": 61, "46": 61, "23": 51, "24": 61, "25": 61, "26": 61, "81": 45, "82": 45, "51": 95, "52": 95, "53": 95, "54": 95, "61": 95, "62": 95, "63": 95, "64": 95 };
             const now = new Date(); now.setMinutes(0, 0, 0);
-            try {
-                diasAemet.forEach(dia => {
-                    if (!dia.fecha) return;
-                    const base = dia.fecha.substring(0, 10);
-                    for (let h = 0; h < 24; h++) {
-                        const p = h.toString().padStart(2, '0'); const f = `${base}T${p}:00:00`;
-                        if (new Date(f) < now) continue;
-                        const get = (arr, k) => { const x = arr?.find(i => i.periodo == p); if (!x) return 0; const v = x[k] !== undefined ? x[k] : x.value; return Array.isArray(v) ? v[0] : v; };
-                        res.time.push(f);
-                        res.temperature_2m.push(parseFloat(get(dia.temperatura)) || 0);
-                        res.apparent_temperature.push(parseFloat(get(dia.sensTermica)) || 0);
-                        res.precipitation_probability.push(parseInt(get(dia.probPrecipitacion)) || 0);
-                        res.precipitation.push(parseFloat(get(dia.precipitacion)) || 0);
-                        res.weather_code.push(map[String(get(dia.estadoCielo)).replace('n', '')] || 1);
-                        res.wind_speed_10m.push(parseInt(get(dia.viento, 'velocidad')) || 0);
-                        res.wind_gusts_10m.push(parseInt(get(dia.rachaMax)) || 0);
-                    }
-                });
-            } catch (e) { console.error("Error en horaria:", e); }
+            diasAemet.forEach(dia => {
+                const base = dia.fecha.substring(0, 10);
+                for (let h = 0; h < 24; h++) {
+                    const p = h.toString().padStart(2, '0'); const f = `${base}T${p}:00:00`;
+                    if (new Date(f) < now) continue;
+                    const get = (arr, k) => { const x = arr?.find(i => i.periodo == p); if (!x) return 0; const v = x[k] !== undefined ? x[k] : x.value; return Array.isArray(v) ? v[0] : v; };
+                    res.time.push(f);
+                    res.temperature_2m.push(parseFloat(get(dia.temperatura)) || 0);
+                    res.apparent_temperature.push(parseFloat(get(dia.sensTermica)) || 0);
+                    res.precipitation_probability.push(parseInt(get(dia.probPrecipitacion)) || 0);
+                    res.precipitation.push(parseFloat(get(dia.precipitacion)) || 0);
+                    res.weather_code.push(map[String(get(dia.estadoCielo)).replace('n', '')] || 1);
+                    res.wind_speed_10m.push(parseInt(get(dia.viento, 'velocidad')) || 0);
+                    res.wind_gusts_10m.push(parseInt(get(dia.rachaMax)) || 0);
+                }
+            });
             return res;
         }
 
@@ -703,6 +658,7 @@
             `;
             document.getElementById('detail-modal').style.display = 'block';
         }
+
         function showSection(s) {
             document.getElementById('section-48h').style.display = s === '48h' ? 'block' : 'none';
             document.getElementById('section-15d').style.display = s === '15d' ? 'block' : 'none';
