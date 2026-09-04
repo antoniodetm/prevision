@@ -334,55 +334,59 @@
         const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
 
         async function init() {
-            const lastId = localStorage.getItem('last_id');
-            const lastName = localStorage.getItem('last_nombre');
-            if (lastId) {
-                if (lastName) document.getElementById('main-title').innerText = lastName.toUpperCase();
-                fetchWeather(lastId);
-            }
+            // 1. Carga inmediata para evitar pantalla en blanco en el móvil
+            let lastId = '28079';
+            let lastName = 'MADRID';
+            try {
+                lastId = localStorage.getItem('last_id') || '28079';
+                lastName = localStorage.getItem('last_nombre') || 'MADRID';
+            } catch (e) { }
 
+            document.getElementById('main-title').innerText = lastName.toUpperCase();
+            fetchWeather(lastId);
+
+            // 2. Intento de geolocalización en segundo plano
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     async (pos) => {
-                        LAT = pos.coords.latitude;
-                        LON = pos.coords.longitude;
-                        localStorage.setItem('lat', LAT);
-                        localStorage.setItem('lon', LON);
-                        updateLinks();
-                        const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
-                        if (idMunicipio && idMunicipio !== lastId) {
-                            fetchWeather(idMunicipio);
-                        } else if (!lastId) {
-                            fetchWeather('28079');
-                        }
-                    },
-                    async () => {
-                        const savedLat = localStorage.getItem('lat');
-                        const savedLon = localStorage.getItem('lon');
-                        if (savedLat && savedLon) {
-                            LAT = savedLat; LON = savedLon;
+                        try {
+                            LAT = pos.coords.latitude;
+                            LON = pos.coords.longitude;
+                            localStorage.setItem('lat', LAT);
+                            localStorage.setItem('lon', LON);
+                            updateLinks();
+
                             const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
-                            if (idMunicipio && idMunicipio !== lastId) fetchWeather(idMunicipio);
-                        } else if (!lastId) {
-                            updateLinks(); fetchWeather();
-                        }
+                            if (idMunicipio && idMunicipio !== lastId) {
+                                fetchWeather(idMunicipio);
+                            }
+                        } catch (e) { }
                     },
-                    { timeout: 5000 }
+                    (err) => {
+                        console.log("Geolocalización no disponible o rechazada.");
+                    },
+                    { timeout: 10000, enableHighAccuracy: false }
                 );
-            } else if (!lastId) { updateLinks(); fetchWeather(); }
+            }
         }
 
         async function getMunicipioIdByCoords(lat, lon) {
             try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
+                // Nominatim a veces bloquea peticiones sin identificar. Añadimos un zoom y lenguaje específico.
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
                     headers: { 'Accept-Language': 'es' }
                 });
                 const data = await response.json();
-                const cityName = data.address.city || data.address.town || data.address.village || data.address.municipality || data.address.county;
+                const addr = data.address;
+                const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.state;
+
                 if (!cityName) return null;
 
                 const municipios = await getMunicipiosList();
+                if (!municipios || municipios.length === 0) return null;
+
                 const normalizedSearch = cityName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedSearch);
                 if (!found) {
                     found = municipios.find(m => {
