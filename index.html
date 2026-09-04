@@ -558,8 +558,11 @@
                     render48h(hourlyAdaptedData);
                     setTimeout(() => logStatus(""), 3000);
                 } else {
-                    logStatus("Error horaria", true);
-                    document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN HORARIA NO DISPONIBLE O BLOQUEADA (CORS)</div>';
+                    let msg = "No disponible";
+                    if (!hourlyResult) msg = "Error Red/Proxy";
+                    else if (!hourlyResult[0]) msg = "AEMET: Sin datos";
+                    logStatus(`Horaria: ${msg}`, true);
+                    document.getElementById('section-48h').innerHTML = `<div class="day-divider">PREDICCIÓN HORARIA: ${msg.toUpperCase()}</div>`;
                 }
             } catch (error) {
                 logStatus("Error de red", true);
@@ -570,7 +573,6 @@
 
         async function fetchAemetData(urlPeticion) {
             try {
-                // Timeout inicial de 5s
                 const resInicial = await fetchWithTimeout(urlPeticion, { timeout: 5000 });
                 const dataInicial = await resInicial.json();
                 if (dataInicial.estado === 200) {
@@ -585,12 +587,13 @@
                         return await resDatos.json();
                     } catch (e) {
                         logStatus("Bypass CORS...");
-                        // Usamos /get en lugar de /raw para mayor robustez en el parseo
-                        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlDatos)}`;
+                        // Usamos corsproxy.io que es más directo para JSON
+                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(urlDatos)}`;
                         const resProxy = await fetchWithTimeout(proxyUrl, { timeout: 10000 });
-                        const dataProxy = await resProxy.json();
-                        return JSON.parse(dataProxy.contents);
+                        return await resProxy.json();
                     }
+                } else {
+                    logStatus(`AEMET: Error ${dataInicial.estado}`, true);
                 }
                 return null;
             } catch (e) {
