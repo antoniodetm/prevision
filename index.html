@@ -453,10 +453,20 @@
                 }
             } catch (e) { }
 
-            logStatus("AEMET: Lista municipios...");
+            logStatus("AEMET: Conectando...");
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
+            const urlMaestro = `https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`;
+
             try {
-                const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
+                let resMunicipiosUrl;
+                try {
+                    resMunicipiosUrl = await fetch(urlMaestro);
+                    if (!resMunicipiosUrl.ok) throw new Error();
+                } catch (e) {
+                    logStatus("Proxy municipios (1)...");
+                    resMunicipiosUrl = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(urlMaestro)}`);
+                }
+
                 const dataMunicipiosUrl = await resMunicipiosUrl.json();
                 let urlDatos = dataMunicipiosUrl.datos;
                 if (urlDatos.startsWith('http:')) {
@@ -468,17 +478,19 @@
                     resMunicipiosList = await fetch(urlDatos);
                     if (!resMunicipiosList.ok) throw new Error("CORS");
                 } catch (e) {
-                    logStatus("Proxy Municipios...");
+                    logStatus("Proxy municipios (2)...");
                     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
                     resMunicipiosList = await fetch(proxyUrl);
                 }
 
-                logStatus("Decodificando...");
+                logStatus("Descargando base de datos...");
                 const buffer = await resMunicipiosList.arrayBuffer();
                 const decoder = new TextDecoder('windows-1252');
                 const municipios = JSON.parse(decoder.decode(buffer));
                 municipiosCache = municipios;
-                localStorage.setItem('municipios_cache', JSON.stringify(municipios));
+                try {
+                    localStorage.setItem('municipios_cache', JSON.stringify(municipios));
+                } catch (e) { }
                 return municipiosCache;
             } catch (e) {
                 logStatus("Error descarga municipios", true);
