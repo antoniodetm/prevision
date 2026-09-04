@@ -570,7 +570,8 @@
 
         async function fetchAemetData(urlPeticion) {
             try {
-                const resInicial = await fetch(urlPeticion);
+                // Timeout inicial de 5s
+                const resInicial = await fetchWithTimeout(urlPeticion, { timeout: 5000 });
                 const dataInicial = await resInicial.json();
                 if (dataInicial.estado === 200) {
                     let urlDatos = dataInicial.datos;
@@ -579,13 +580,13 @@
                     }
 
                     try {
-                        const resDatos = await fetch(urlDatos);
+                        const resDatos = await fetchWithTimeout(urlDatos, { timeout: 5000 });
                         if (!resDatos.ok) throw new Error("CORS");
                         return await resDatos.json();
                     } catch (e) {
                         logStatus("Bypass CORS...");
                         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlDatos)}`;
-                        const resProxy = await fetch(proxyUrl);
+                        const resProxy = await fetchWithTimeout(proxyUrl, { timeout: 10000 });
                         return await resProxy.json();
                     }
                 }
