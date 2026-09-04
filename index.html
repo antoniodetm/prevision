@@ -330,11 +330,10 @@
     <script>
         let LAT = 40.342, LON = -3.831;
         let dailyData = null;
-        let municipiosCache = null; // Caché para la lista de municipios
+        let municipiosCache = null;
         const weatherIcons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 51: "🌦️", 61: "🌧️", 80: "🌦️", 95: "⛈️" };
 
         async function init() {
-            // Carga rápida del último municipio guardado para evitar esperas
             const lastId = localStorage.getItem('last_id');
             const lastName = localStorage.getItem('last_nombre');
             if (lastId) {
@@ -350,8 +349,6 @@
                         localStorage.setItem('lat', LAT);
                         localStorage.setItem('lon', LON);
                         updateLinks();
-
-                        // Si no hay lastId, o si queremos actualizar por si se ha movido
                         const idMunicipio = await getMunicipioIdByCoords(LAT, LON);
                         if (idMunicipio && idMunicipio !== lastId) {
                             fetchWeather(idMunicipio);
@@ -370,74 +367,74 @@
                             updateLinks(); fetchWeather();
                         }
                     },
-                    { timeout: 5000 } // Timeout para no bloquear si el GPS tarda
+                    { timeout: 5000 }
                 );
             } else if (!lastId) { updateLinks(); fetchWeather(); }
         }
 
+        async function getMunicipioIdByCoords(lat, lon) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
+                    headers: { 'Accept-Language': 'es' }
+                });
+                const data = await response.json();
+                const cityName = data.address.city || data.address.town || data.address.village || data.address.municipality || data.address.county;
+                if (!cityName) return null;
+
+                const municipios = await getMunicipiosList();
+                const normalizedSearch = cityName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedSearch);
+                if (!found) {
+                    found = municipios.find(m => {
+                        const mName = m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                        return mName.includes(normalizedSearch) || normalizedSearch.includes(mName);
+                    });
+                }
+                return found ? found.id.slice(-5) : null;
+            } catch (e) { return null; }
+        }
+
+        function updateLinks() {
+            document.getElementById('accu-now-link').href = `https://www.accuweather.com/es/search-locations?query=${LAT},${LON}`;
+        }
+
         async function getMunicipiosList() {
             if (municipiosCache) return municipiosCache;
-
-            // Intentar cargar de caché local (Persistencia)
             try {
                 const cached = localStorage.getItem('municipios_cache');
                 if (cached) {
                     municipiosCache = JSON.parse(cached);
-                    console.log("Lista de municipios cargada desde caché local.");
                     return municipiosCache;
                 }
-            } catch (e) { console.warn("Error leyendo caché local"); }
+            } catch (e) { }
 
-            console.log("Descargando lista de municipios de AEMET por primera vez...");
             const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
             try {
                 const resMunicipiosUrl = await fetch(`https://opendata.aemet.es/opendata/api/maestro/municipios?api_key=${apiKey}`);
                 const dataMunicipiosUrl = await resMunicipiosUrl.json();
-
-                if (dataMunicipiosUrl.estado !== 200) throw new Error('Error API');
-
                 const resMunicipiosList = await fetch(dataMunicipiosUrl.datos);
                 const buffer = await resMunicipiosList.arrayBuffer();
                 const decoder = new TextDecoder('windows-1252');
                 const municipios = JSON.parse(decoder.decode(buffer));
-
                 municipiosCache = municipios;
-                // Guardar en caché local para la próxima vez
                 localStorage.setItem('municipios_cache', JSON.stringify(municipios));
                 return municipiosCache;
-            } catch (e) {
-                console.error("Error obteniendo municipios:", e);
-                return [];
-            }
+            } catch (e) { return []; }
         }
 
         async function searchCity() {
             const city = prompt("Escribe el nombre de la ciudad:");
             if (!city) return;
-
             document.getElementById('section-15d').innerHTML = '<div class="day-divider">BUSCANDO...</div>';
             document.getElementById('section-48h').innerHTML = '<div class="day-divider">BUSCANDO...</div>';
-
             try {
                 const normalizedCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                 const municipios = await getMunicipiosList();
-
-                // Búsqueda más flexible
                 let found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === normalizedCity);
-
-                if (!found) {
-                    found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedCity));
-                }
-
-                if (found) {
-                    fetchWeather(found.id.slice(-5));
-                } else {
-                    alert("No encontrado.");
-                    fetchWeather();
-                }
-            } catch (e) {
-                fetchWeather();
-            }
+                if (!found) found = municipios.find(m => m.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes(normalizedCity));
+                if (found) fetchWeather(found.id.slice(-5));
+                else { alert("No encontrado."); fetchWeather(); }
+            } catch (e) { fetchWeather(); }
         }
 
         async function fetchWeather(idMunicipio = '28079') {
@@ -445,57 +442,39 @@
             document.getElementById('section-15d').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             document.getElementById('section-48h').innerHTML = '<div class="day-divider">CARGANDO...</div>';
             const API_KEY_AEMET = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbnRvbmlvZGV0bUBnbWFpbC5jb20iLCJqdGkiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJleHAiOjE3OTU1MDI1OTksImlzcyI6IkFFTUVUIiwiaWF0IjoxNzg2ODYyNTk5LCJ1c2VySWQiOiIzZTcxNTZmNC05YzZiLTQyMDMtYmE2YS0zZTRiYTAxMmQxNDUiLCJyb2xlIjoiIn0.PhW1cv27D88wKrZb2kFFP2NqQVmy23h35uiYjVTjqFY';
-
             try {
                 const [dailyResult, hourlyResult] = await Promise.all([
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/diaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`),
                     fetchAemetData(`https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/${idMunicipio}/?api_key=${API_KEY_AEMET}`)
                 ]);
-
-                if (dailyResult) {
+                if (dailyResult && dailyResult[0]) {
                     const nombre = dailyResult[0].nombre;
                     document.getElementById('main-title').innerText = nombre.toUpperCase();
                     localStorage.setItem('last_nombre', nombre);
-                    const prediccionDiaria = dailyResult[0].prediccion.dia;
-                    dailyData = adaptarDatosAemet(prediccionDiaria);
+                    dailyData = adaptarDatosAemet(dailyResult[0].prediccion.dia);
                     render15d(dailyData);
                 }
-                // ... rest of fetchWeather ...
-
-                if (hourlyResult) {
-                    console.log(`Datos horarios de ${hourlyResult[0].nombre} recibidos de AEMET:`, hourlyResult);
+                if (hourlyResult && hourlyResult[0] && hourlyResult[0].prediccion) {
                     const hourlyAdaptedData = adaptarDatosAemetHoraria(hourlyResult[0].prediccion.dia);
                     render48h(hourlyAdaptedData);
                 } else {
-                    document.getElementById('section-48h').innerHTML = '<div class="day-divider">Error al cargar predicción horaria.</div>';
+                    document.getElementById('section-48h').innerHTML = '<div class="day-divider">PREDICCIÓN HORARIA NO DISPONIBLE</div>';
                 }
-
             } catch (error) {
-                console.error("Error al obtener datos de AEMET:", error);
-                alert("Hubo un error al conectar con AEMET.");
+                document.getElementById('section-48h').innerHTML = '<div class="day-divider">ERROR DE CONEXIÓN</div>';
             }
         }
 
-        /**
-         * Función auxiliar para realizar la petición de 2 pasos a la API de AEMET
-         */
         async function fetchAemetData(urlPeticion) {
             try {
                 const resInicial = await fetch(urlPeticion);
                 const dataInicial = await resInicial.json();
-
                 if (dataInicial.estado === 200) {
-                    const urlDatos = dataInicial.datos;
-                    const resDatos = await fetch(urlDatos);
+                    const resDatos = await fetch(dataInicial.datos);
                     return await resDatos.json();
-                } else {
-                    console.error(`Error con la API de AEMET (${urlPeticion}): ${dataInicial.descripcion}`);
-                    return null; // Devuelve null si hay un error específico de la API
                 }
-            } catch (e) {
-                console.error(`Fallo de red al intentar obtener datos de ${urlPeticion}`, e);
-                return null; // Devuelve null si hay un fallo de red
-            }
+                return null;
+            } catch (e) { return null; }
         }
 
         function closeModal() { document.getElementById('detail-modal').style.display = 'none'; }
@@ -506,28 +485,18 @@
             const tClass = t1 > 28 ? 'color-temp-hot' : (t1 < 10 ? 'color-temp-cold' : '');
             const pClass = p1 > 0 ? 'color-rain' : 'dim';
             const wClass = w1 > 25 ? 'color-wind-danger' : (w1 > 15 ? 'color-wind-warn' : '');
-            const rainMain = p1 > 0 ? p1 + '%' : '<span class="dim">-</span>';
-            const rainSub = p2 > 0 ? p2.toFixed(1) + 'm' : '';
-            const windSub = w2 > 0 ? `(${w2})` : '';
-
             return `<div class="card ${risk}" ${click}>
-        <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode] || "🌤️"}</div></div>
-        <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${tClass}">${t1}°</span><span class="val-small">${t2}°</span></div>
-        <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${pClass}">${rainMain}</span><span class="val-small">${rainSub}</span></div>
-        <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${wClass}">${w1}</span><span class="val-small">${windSub}</span></div>
-    </div>`;
+                <div class="sub-box"><div class="time-tag-big">${title}</div><div class="weather-icon-big">${weatherIcons[iconCode] || "🌤️"}</div></div>
+                <div class="sub-box"><span class="label">TEMP</span><span class="val-big ${tClass}">${t1}°</span><span class="val-small">${t2}°</span></div>
+                <div class="sub-box"><span class="label">LLUVIA</span><span class="val-big ${pClass}">${p1 > 0 ? p1 + '%' : '-'}</span><span class="val-small">${p2 > 0 ? p2.toFixed(1) + 'm' : ''}</span></div>
+                <div class="sub-box"><span class="label">VIENTO</span><span class="val-big ${wClass}">${w1}</span><span class="val-small">${w2 > 0 ? '(' + w2 + ')' : ''}</span></div>
+            </div>`;
         }
 
         function render48h(h) {
             const list = document.getElementById('section-48h');
-            let html = '';
-            const now = new Date();
-            const currentHour = now.getHours();
-            const today = now.getDate();
-            let startIndex = h.time.findIndex(t => {
-                const d = new Date(t);
-                return d.getDate() === today && d.getHours() === currentHour;
-            });
+            let html = ''; const now = new Date(); const currentHour = now.getHours(); const today = now.getDate();
+            let startIndex = h.time.findIndex(t => { const d = new Date(t); return d.getDate() === today && d.getHours() === currentHour; });
             if (startIndex === -1) startIndex = 0;
             let lastDay = -1;
             for (let i = startIndex; i < startIndex + 48; i++) {
@@ -548,100 +517,62 @@
             for (let i = 0; i < 15; i++) {
                 const date = new Date(d.time[i]);
                 const dayLabel = date.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', '');
-                const dayNum = date.getDate();
-                html += createCard(`${dayLabel} ${dayNum}`, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
+                html += createCard(`${dayLabel} ${date.getDate()}`, d.weather_code[i], Math.round(d.temperature_2m_max[i]), Math.round(d.temperature_2m_min[i]), d.precipitation_probability_max[i], d.precipitation_sum[i], Math.round(d.wind_speed_10m_max[i]), Math.round(d.wind_gusts_10m_max[i]), i);
             }
             list.innerHTML = html;
         }
 
-        /**
-         * Función de ayuda para transformar los datos de AEMET al formato que espera `render15d`.
-         */
         function adaptarDatosAemet(diasAemet) {
-            const daily = {
-                time: [], weather_code: [], temperature_2m_max: [], temperature_2m_min: [],
-                precipitation_probability_max: [], precipitation_sum: [], wind_speed_10m_max: [],
-                wind_gusts_10m_max: [], apparent_temperature_max: [], uv_index_max: [],
-                sunrise: [], sunset: []
-            };
-
+            const daily = { time: [], weather_code: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [], precipitation_sum: [], wind_speed_10m_max: [], wind_gusts_10m_max: [], apparent_temperature_max: [], uv_index_max: [], sunrise: [], sunset: [] };
             diasAemet.forEach(dia => {
-                daily.time.push(dia.fecha);
-                daily.temperature_2m_max.push(dia.temperatura.maxima);
-                daily.temperature_2m_min.push(dia.temperatura.minima);
+                daily.time.push(dia.fecha); daily.temperature_2m_max.push(dia.temperatura.maxima); daily.temperature_2m_min.push(dia.temperatura.minima);
                 daily.precipitation_probability_max.push(Math.max(...dia.probPrecipitacion.map(p => p.value)));
                 daily.wind_speed_10m_max.push(dia.viento.length > 0 ? Math.max(...dia.viento.map(p => p.velocidad)) : 0);
                 daily.wind_gusts_10m_max.push(dia.rachaMax.length > 0 ? Math.max(...dia.rachaMax.map(p => p.value)) : 0);
                 daily.apparent_temperature_max.push(dia.sensTermica?.maxima || dia.temperatura.maxima);
-                daily.uv_index_max.push(dia.uvMax?.value || 0);
-                daily.precipitation_sum.push(0);
-                daily.sunrise.push(dia.orto || "00:00");
-                daily.sunset.push(dia.ocaso || "00:00");
+                daily.uv_index_max.push(dia.uvMax?.value || 0); daily.precipitation_sum.push(0);
+                daily.sunrise.push(dia.orto || "00:00"); daily.sunset.push(dia.ocaso || "00:00");
             });
-
-            // Rellenamos hasta 15 días si AEMET da menos
-            while (daily.time.length < 15) {
-                daily.time.push(new Date().toISOString());
-            }
             return daily;
         }
 
-        /**
-         * Función de ayuda para transformar los datos HORARIOS de AEMET al formato que espera `render48h`.
-         */
         function adaptarDatosAemetHoraria(diasAemet) {
-            const datosAdaptados = {
-                time: [], weather_code: [], temperature_2m: [], apparent_temperature: [],
-                precipitation_probability: [], precipitation: [], wind_speed_10m: [], wind_gusts_10m: []
-            };
-            const aemetToWmo = { "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, "43": 51, "44": 51, "45": 61, "46": 61, "23": 51, "24": 61, "25": 61, "26": 61, "81": 45, "82": 45, "51": 95, "52": 95, "53": 95, "54": 95, "61": 95, "62": 95, "63": 95, "64": 95 };
-            let currentDate = new Date();
-            currentDate.setMinutes(0, 0, 0);
-
+            const res = { time: [], weather_code: [], temperature_2m: [], apparent_temperature: [], precipitation_probability: [], precipitation: [], wind_speed_10m: [], wind_gusts_10m: [] };
+            const map = { "11": 0, "12": 1, "13": 2, "14": 3, "15": 3, "16": 3, "17": 2, "43": 51, "44": 51, "45": 61, "46": 61, "23": 51, "24": 61, "25": 61, "26": 61, "81": 45, "82": 45, "51": 95, "52": 95, "53": 95, "54": 95, "61": 95, "62": 95, "63": 95, "64": 95 };
+            const now = new Date(); now.setMinutes(0, 0, 0);
             diasAemet.forEach(dia => {
-                const fechaBase = dia.fecha.substring(0, 10);
+                const base = dia.fecha.substring(0, 10);
                 for (let h = 0; h < 24; h++) {
-                    const horaStr = h.toString().padStart(2, '0');
-                    const fullDate = `${fechaBase}T${horaStr}:00:00`;
-                    if (new Date(fullDate) < currentDate) continue;
-
-                    const temp = dia.temperatura.find(t => t.periodo == horaStr)?.value || 0;
-                    const sensTerm = dia.sensTermica?.find(t => t.periodo == horaStr)?.value || temp;
-                    const probPrecip = dia.precipitacion.find(p => p.periodo == horaStr)?.value || 0;
-                    const estadoCielo = (dia.estadoCielo?.find(e => e.periodo == horaStr)?.value || "11").replace('n', '');
-                    const vientoData = dia.vientoAndRachaMax?.find(v => v.periodo == horaStr);
-                    const viento = vientoData?.velocidad[0] || 0;
-                    const racha = vientoData?.velocidad[1] || viento;
-
-                    datosAdaptados.time.push(fullDate);
-                    datosAdaptados.temperature_2m.push(parseInt(temp));
-                    datosAdaptados.apparent_temperature.push(parseInt(sensTerm));
-                    datosAdaptados.precipitation_probability.push(parseInt(probPrecip));
-                    datosAdaptados.precipitation.push(probPrecip > 0 ? 0.1 : 0);
-                    datosAdaptados.weather_code.push(aemetToWmo[estadoCielo] || 1);
-                    datosAdaptados.wind_speed_10m.push(parseInt(viento));
-                    datosAdaptados.wind_gusts_10m.push(parseInt(racha));
+                    const p = h.toString().padStart(2, '0'); const f = `${base}T${p}:00:00`;
+                    if (new Date(f) < now) continue;
+                    const get = (arr, k) => { const x = arr?.find(i => i.periodo == p); if (!x) return 0; const v = x[k] !== undefined ? x[k] : x.value; return Array.isArray(v) ? v[0] : v; };
+                    res.time.push(f);
+                    res.temperature_2m.push(parseFloat(get(dia.temperatura)) || 0);
+                    res.apparent_temperature.push(parseFloat(get(dia.sensTermica)) || 0);
+                    res.precipitation_probability.push(parseInt(get(dia.probPrecipitacion)) || 0);
+                    res.precipitation.push(parseFloat(get(dia.precipitacion)) || 0);
+                    res.weather_code.push(map[String(get(dia.estadoCielo)).replace('n', '')] || 1);
+                    res.wind_speed_10m.push(parseInt(get(dia.viento, 'velocidad')) || 0);
+                    res.wind_gusts_10m.push(parseInt(get(dia.rachaMax)) || 0);
                 }
             });
-            return datosAdaptados;
+            return res;
         }
 
         function openDetail(i) {
-            const d = dailyData;
-            const dateStr = new Date(d.time[i]).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
-
-            document.getElementById('modal-date').innerText = dateStr;
+            const d = dailyData; const dt = new Date(d.time[i]).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+            document.getElementById('modal-date').innerText = dt;
             document.getElementById('modal-body').innerHTML = `
-        <div class="detail-item"><span>🌡️ TEMP MÁX</span><div class="num-heavy">${Math.round(d.temperature_2m_max[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>❄️ TEMP MÍN</span><div class="num-heavy">${Math.round(d.temperature_2m_min[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>🔥 SENSACIÓN</span><div class="num-heavy">${Math.round(d.apparent_temperature_max[i])}<span class="unit">°C</span></div></div>
-        <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i] > 6 ? 'var(--danger)' : '#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
-        <div class="detail-item"><span>💨 VIENTO/RACHA</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
-        <div class="detail-item"><span>🌧️ LLUVIA TOTAL</span><div class="num-heavy">${d.precipitation_sum[i]}<span class="unit">mm</span></div></div>
-        <div class="detail-item"><span>💧 PROB. LLUVIA</span><div class="num-heavy">${d.precipitation_probability_max[i]}<span class="unit">%</span></div></div>
-        <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].replace('T', '')}</div></div>
-        <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].replace('T', '')}</div></div>
-    `;
+                <div class="detail-item"><span>🌡️ TEMP MÁX</span><div class="num-heavy">${Math.round(d.temperature_2m_max[i])}<span class="unit">°C</span></div></div>
+                <div class="detail-item"><span>❄️ TEMP MÍN</span><div class="num-heavy">${Math.round(d.temperature_2m_min[i])}<span class="unit">°C</span></div></div>
+                <div class="detail-item"><span>🔥 SENSACIÓN</span><div class="num-heavy">${Math.round(d.apparent_temperature_max[i])}<span class="unit">°C</span></div></div>
+                <div class="detail-item"><span>☀️ ÍNDICE UV</span><div class="num-heavy" style="color:${d.uv_index_max[i] > 6 ? 'var(--danger)' : '#fff'}">${Math.round(d.uv_index_max[i])}</div></div>
+                <div class="detail-item"><span>💨 VIENTO/RACHA</span><div class="num-heavy">${Math.round(d.wind_gusts_10m_max[i])}<span class="unit">km/h</span></div></div>
+                <div class="detail-item"><span>🌧️ LLUVIA TOTAL</span><div class="num-heavy">${d.precipitation_sum[i]}<span class="unit">mm</span></div></div>
+                <div class="detail-item"><span>💧 PROB. LLUVIA</span><div class="num-heavy">${d.precipitation_probability_max[i]}<span class="unit">%</span></div></div>
+                <div class="detail-item"><span>🌅 AMANECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunrise[i].replace('T', '')}</div></div>
+                <div class="detail-item"><span>🌇 ATARDECER</span><div class="num-heavy" style="font-size:1.5rem">${d.sunset[i].replace('T', '')}</div></div>
+            `;
             document.getElementById('detail-modal').style.display = 'block';
         }
         function showSection(s) {
@@ -649,7 +580,6 @@
             document.getElementById('section-15d').style.display = s === '15d' ? 'block' : 'none';
             document.getElementById('btn-48h').className = `nav-btn ${s === '48h' ? 'active' : ''}`;
             document.getElementById('btn-15d').className = `nav-btn ${s === '15d' ? 'active' : ''}`;
-            // El título principal ahora se actualiza con el nombre del municipio
         }
     </script>
 </body>
